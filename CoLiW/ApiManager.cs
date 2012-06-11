@@ -7,7 +7,7 @@ namespace CoLiW
     {
         public ApiManager()
         {
-            
+            FacebookClient = new Facebook();
         }
 
         

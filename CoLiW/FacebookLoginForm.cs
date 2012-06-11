@@ -15,8 +15,10 @@ namespace CoLiW
         {
             InitializeComponent();
             Browser = webBrowser;
+            IsLoggedIn = false;
         }
 
+        public bool IsLoggedIn { get; set; }
         
 
         public WebBrowser Browser { get; set; }
