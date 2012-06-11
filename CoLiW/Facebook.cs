@@ -10,6 +10,7 @@ namespace CoLiW
     {
         public FacebookLoginForm FbLoginForm;
 
+        public Uri LogoutUri { get; set; }
 
         public Facebook()
         {
@@ -29,6 +30,21 @@ namespace CoLiW
             if (FbLoginForm.ShowDialog() == DialogResult.No)
                 return false;
             return true;
+        }
+
+        public bool Logout()
+        {
+            LogoutUri =
+                    GetLogoutUrl(
+                        new
+                        {
+                            access_token = AccessToken,
+                            next = "https://www.facebook.com/connect/login_success.html"
+                        });
+            FbLoginForm.Browser.Navigate(LogoutUri);
+            FbLoginForm.ShowDialog();
+            
+            return false;
         }
 
         public Uri GetLoginUri(string extendedPermissions)
@@ -122,10 +138,7 @@ namespace CoLiW
             return false;
         }
 
-        public bool Logout()
-        {
-            return false;
-        }
+        
 
 
         private void BrowserNavigated(object sender, WebBrowserNavigatedEventArgs e)
@@ -143,6 +156,7 @@ namespace CoLiW
             }
             else
             {
+                FbLoginForm.IsLoggedIn = false;
                 FbLoginForm.Close();
             }
         }

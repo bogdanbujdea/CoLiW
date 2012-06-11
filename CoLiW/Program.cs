@@ -29,6 +29,9 @@ namespace CoLiW
                         case "login":
                             Login(parameters);
                             break;
+                        case "logout":
+                            Logout(parameters);
+                            break;
                         default:
                             Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
                             break;
@@ -38,6 +41,28 @@ namespace CoLiW
                 {
                     Console.WriteLine(exception.Message);
                 }
+            }
+        }
+
+        private static void Logout(string[] parameters)
+        {
+            if (parameters.Length < 2)
+                throw new InvalidCommand("You forgot to specify the app");
+            try
+            {
+                switch (parameters[1])
+                {
+                    case "facebook":
+                        _apiManager.FacebookClient.Logout();
+                        break;
+                    default:
+                        throw new InvalidCommand("Invalid app selected for logout.");
+                        break;
+                }
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception.Message);
             }
         }
 
