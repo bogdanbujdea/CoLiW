@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Facebook;
 
@@ -24,6 +25,9 @@ namespace CoLiW
                     string[] parameters = command.Split(' ');
                     switch (parameters[0])
                     {
+                        case "test":
+                            _apiManager.FacebookClient.GetAlbums("bogdanbujdea");
+                            break;
                         case "login":
                             Login(parameters);
                             break;
@@ -32,6 +36,9 @@ namespace CoLiW
                             break;
                         case "get":
                             Console.WriteLine(Get(parameters));
+                            break;
+                        case "post":
+                            Console.WriteLine(Post(parameters));
                             break;
                         default:
                             Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
@@ -43,6 +50,97 @@ namespace CoLiW
                     Console.WriteLine(exception.Message);
                 }
             }
+        }
+
+        private static string Post(string[] parameters)
+        {
+            if (parameters.Length < 2)
+                throw new InvalidCommand("Not enough parameters");
+            switch (parameters[1])
+            {
+                case "facebook":
+                    return PostFacebook(parameters);
+                default:
+                    throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
+                    break;
+            }
+            return "";
+        }
+
+        private static string PostFacebook(string[] parameters)
+        {
+            try
+            {
+                string username;
+                if (parameters.Contains("-u") == false)
+                {
+                    username = "me";
+                }
+                else
+                {
+                    var param = new List<string>(parameters);
+                    int index = param.IndexOf("-u") + 1;
+                    if (index < 0 || index > param.Count)
+                        throw new InvalidCommand(
+                            "Command not formated properly. Example: 'post facebook name -u johnsmith'"); //needs to be changed
+                    username = param.ElementAt(index);
+                }
+                var photoDetails = new PhotoDetails();
+
+                for (int i = 2; i < parameters.Length; i++)
+                {
+                    switch (parameters[i])
+                    {
+                        case "fn":
+                            photoDetails.FacebookName = parameters[i + 1];
+                            break;
+                        case "pd":
+                            photoDetails.PhotoDescription = parameters[i + 1];
+                            break;
+                        case "aid":
+                            photoDetails.AlbumId = parameters[i + 1];
+                            break;
+                        case "ad":
+                            photoDetails.AlbumDescription = parameters[i + 1];
+                            break;
+                        case "an":
+                            photoDetails.AlbumName = parameters[i + 1];
+                            break;
+                        case "path":
+                            photoDetails.ImageStream = File.ReadAllBytes(parameters[i + 1]);
+                            break;
+                    }
+                   
+                }
+                if (string.IsNullOrEmpty(photoDetails.AlbumId))
+                {
+                    photoDetails.AlbumId = ChooseAlbumId(username);
+                }
+                _apiManager.FacebookClient.AddPhoto(photoDetails);
+            }
+            catch (Exception exception)
+            {
+                return exception.Message;
+            }
+            return "";
+        }
+
+        private static string ChooseAlbumId(string username)
+        {
+            var albums = _apiManager.FacebookClient.GetAlbums(username);
+
+            int i = 1;
+            foreach (AlbumDetails album in albums)
+            {
+                Console.WriteLine(String.Format("{0}. {1}", i, album.AlbumName));
+                i++;
+            }
+
+            Console.WriteLine("Type a number:");
+            string selectedAlbum = Console.ReadLine();
+
+            Int32.TryParse(selectedAlbum, out i);
+            return albums[i - 1].Id;
         }
 
         private static string Get(string[] parameters)
@@ -73,7 +171,8 @@ namespace CoLiW
                     var param = new List<string>(parameters);
                     int index = param.IndexOf("-u") + 1;
                     if (index < 0 || index > param.Count)
-                        throw new InvalidCommand("Command not formated properly. Example: 'get facebook name -u johnsmith'");
+                        throw new InvalidCommand(
+                            "Command not formated properly. Example: 'get facebook name -u johnsmith'");
                     username = param.ElementAt(index);
                 }
 

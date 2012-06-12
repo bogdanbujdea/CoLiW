@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Dynamic;
 using System.Security.Authentication;
 using System.Windows.Forms;
@@ -54,7 +55,7 @@ namespace CoLiW
             if (forceLogin && FbLoginForm.IsLoggedIn)
                 //if the user is logged in, and forcelogin = true, then logout first
                 Logout();
-            FbLoginForm.Browser.Navigate(GetLoginUri("publish_stream"));
+            FbLoginForm.Browser.Navigate(GetLoginUri("publish_stream, user_photos"));
             if (FbLoginForm.ShowDialog() == DialogResult.No)
                 return false;
             return true;
@@ -153,6 +154,83 @@ namespace CoLiW
 
         public bool AddPhoto(PhotoDetails photoDetails)
         {
+            var mediaObject = new FacebookMediaObject
+            {
+                FileName = photoDetails.FacebookName,
+                ContentType = "image/jpeg"
+            };
+            byte[] fileBytes = photoDetails.ImageStream;
+            mediaObject.SetValue(fileBytes);
+            IDictionary<string, object> upload = new Dictionary<string, object>();
+            upload.Add("name", photoDetails.FacebookName);
+            upload.Add("message", photoDetails.PhotoDescription);
+            upload.Add("@file.jpg", mediaObject);
+            Post("/" + photoDetails.AlbumId + "/photos", upload);
+            return true;
+        }
+
+        public bool CreateAlbum(AlbumDetails album)
+        {
+            var albumParameters = new Dictionary<string, object>
+                                      {
+                                          {"message", album.AlbumDescription},
+                                          {"name", album.AlbumName}
+                                      };
+            var resul = Post("/me/albums", albumParameters) as JsonObject;
+            return false;
+        }
+
+        public List<AlbumDetails> GetAlbums(string username)
+        {
+            List<AlbumDetails> albumDetails = new List<AlbumDetails>();
+            dynamic albums = Get("/" + username + "/albums");
+            foreach (dynamic albumInfo in albums.data)
+            {
+                AlbumDetails album = new AlbumDetails();
+                if(albumInfo.name != null)
+                    album.AlbumName = albumInfo.name;
+                if(albumInfo.description != null)
+                    album.AlbumDescription = albumInfo.description;
+                if(albumInfo.id != null)
+                    album.Id = albumInfo.id;
+                if(albumInfo.count != null)
+                    album.PhotoCount = albumInfo.count;
+                if(albumInfo.can_upload != null)
+                    album.CanUpload = albumInfo.can_upload;
+
+                albumDetails.Add(album);
+            }
+            return albumDetails;
+        }
+
+        public bool PostPhotoToWall(PhotoDetails photoDetails)
+        {
+            dynamic messagePost = new ExpandoObject();
+            messagePost.picture = "http://yaplex.com/uploads/yaplex-logo-with-text-small.png";
+            messagePost.link = "http://yaplex.com/";
+            messagePost.name = "[name] Facebook name...";
+
+            // "{*actor*} " + "posted news..."; //<---{*actor*} is the user (i.e.: Alex)
+            messagePost.caption = " Facebook caption";
+            messagePost.description =
+                "[description] Facebook description...";
+            messagePost.message = "[message] Facebook message...";
+
+            string acccessToken =
+                "xxxx5120330xxxx|4xxxxx0c0f95bd3f62dxxxxx.1-10000xx4x73xxxx|2xx5xxx0566xxxx|z2xxxx37dxxxxsdDS23s_Sah34a";
+            FacebookClient appp = new FacebookClient(acccessToken);
+            try
+            {
+                var postId = appp.Post("24351740xxxxxx" + "/feed", messagePost);
+            }
+            catch (FacebookOAuthException ex)
+            {
+                //handle oauth exception
+            }
+            catch (FacebookApiException ex)
+            {
+                //handle facebook exception
+            }
             return false;
         }
 
@@ -180,10 +258,6 @@ namespace CoLiW
             return userDetails;
         }
 
-        public bool CreateAlbum(AlbumDetails albumDetails)
-        {
-            return false;
-        }
 
         private void BrowserNavigated(object sender, WebBrowserNavigatedEventArgs e)
         {
