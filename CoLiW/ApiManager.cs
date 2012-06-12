@@ -7,7 +7,7 @@ namespace CoLiW
     {
         public ApiManager()
         {
-            FacebookClient = new Facebook();
+           
         }
 
         
@@ -17,6 +17,11 @@ namespace CoLiW
         public void ProcessMessage(string message)
         {
             
+        }
+
+        public void InitializeFacebook(string appId, string appSecret)
+        {
+            FacebookClient = new Facebook(appId, appSecret);
         }
     }
 }

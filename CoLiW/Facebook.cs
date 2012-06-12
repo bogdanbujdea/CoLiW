@@ -14,8 +14,36 @@ namespace CoLiW
 
         public Facebook()
         {
+            
+        }
+
+        public Facebook(string appId, string appSecret)
+        {
+            AppId = appId;
+            AppSecret = appSecret;
             FbLoginForm = new FacebookLoginForm();
             FbLoginForm.Browser.Navigated += BrowserNavigated;
+            if (IsLoggedIn() && string.IsNullOrEmpty(AccessToken) == true)
+                Login(false);
+
+        }
+
+        public bool IsLoggedIn()
+        {
+            try
+            {
+                FbLoginForm.IsLoggedIn = true; //assume that the user is logged in
+                UserDetails me = GetUserDetails("me"); //try to get his name
+                return true;
+            }
+            catch (Exception exception) //if there is an exception, then the user is logged out
+            {
+                if (exception is FacebookOAuthException && exception.Message.Contains("#2500")) //especially if the exception is an oauthexception
+                {
+                    return true;
+                }
+                else return false; //but if there is another exception, then login
+            }
         }
 
         public bool Login(bool forceLogin)
@@ -43,7 +71,7 @@ namespace CoLiW
                         });
             FbLoginForm.Browser.Navigate(LogoutUri);
             FbLoginForm.ShowDialog();
-            
+            FbLoginForm.IsLoggedIn = false;
             return false;
         }
 
@@ -130,16 +158,32 @@ namespace CoLiW
 
         public UserDetails GetUserDetails(string userName)
         {
-            return null;
+            if(FbLoginForm.IsLoggedIn == false)
+                throw new FacebookOAuthException("The user is not logged in");
+
+            dynamic user = Get(userName);
+            var userDetails = new UserDetails();
+            if(user.name != null)
+                userDetails.Name = (string) user.name;
+            if (user.first_name != null)
+                userDetails.FirstName = (string) user.first_name;
+            if (user.last_name != null)
+                userDetails.LastName = (string) user.last_name;
+            if (user.link != null)
+                userDetails.ProfileUrl = (string) user.link;
+            if (user.username != null)
+                userDetails.Username = (string) user.username;
+            if (user.gender != null)
+                userDetails.Gender = (string) user.gender;
+            if (user.id != null)
+                userDetails.Id = (string) user.id;
+            return userDetails;
         }
 
         public bool CreateAlbum(AlbumDetails albumDetails)
         {
             return false;
         }
-
-        
-
 
         private void BrowserNavigated(object sender, WebBrowserNavigatedEventArgs e)
         {
