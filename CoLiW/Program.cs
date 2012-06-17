@@ -50,28 +50,63 @@ namespace CoLiW
             }
         }
 
-        public static String[] ParseArguments(string args)
+        
+
+        #region Main commands
+        private static void Login(string[] parameters)
         {
-            List<String> parameters = new List<string>();
-            bool add = false;
-            string parameter = null;
-            foreach (char c in args)
+            if (parameters.Length < 2)
+                throw new InvalidCommand("You forgot to specify the app");
+            switch (parameters[1])
             {
-                if (c == '\"')
-                    add = !add;
-                if (c == ' ')
-                    if (add == false)
+                case "facebook":
+                    if (parameters.Length == 4)
+                        _apiManager.FacebookClient.Login(parameters[2], parameters[3], false);
+                    else if (parameters.Length == 2)
                     {
-                        parameters.Add(parameter);
-                        parameter = string.Empty;
-                        continue;
+                        _apiManager.FacebookClient.Login(false);
                     }
-                parameter += c;
+                    else throw new InvalidCommand("Wrong number of parameters");
+                    break;
+                default:
+                    throw new InvalidCommand("Wrong command");
             }
-            parameters.Add(parameter);
-            return parameters.ToArray();
         }
 
+        private static void Logout(string[] parameters)
+        {
+            if (parameters.Length < 2)
+                throw new InvalidCommand("You forgot to specify the app");
+            try
+            {
+                switch (parameters[1])
+                {
+                    case "facebook":
+                        _apiManager.FacebookClient.Logout();
+                        break;
+                    default:
+                        throw new InvalidCommand("Invalid app selected for logout.");
+                }
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception.Message);
+            }
+        }
+
+        private static string Get(string[] parameters)
+        {
+            if (parameters.Length < 2)
+                throw new InvalidCommand("Not enough parameters");
+            switch (parameters[1])
+            {
+                case "facebook":
+                    return GetFacebook(parameters);
+                default:
+                    throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
+            }
+        }
+      
         private static bool Post(string[] parameters)
         {
             if (parameters.Length < 2)
@@ -84,7 +119,9 @@ namespace CoLiW
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
         }
+        #endregion
 
+        #region Facebook
         private static bool PostFacebook(string[] parameters)
         {
             try
@@ -95,10 +132,7 @@ namespace CoLiW
                     if (parameter.Contains("-u"))
                     {
                         var p = parameter.Split(':');
-                        if (p.Length < 2)
-                            username = "me";
-                        else
-                            username = p[1];
+                        username = p.Length < 2 ? "me" : p[1].Trim('\"');
                         break;
                     }
                 }
@@ -113,7 +147,7 @@ namespace CoLiW
                     case "album":
                         return PostFacebookAlbum(parameters, username);
                     case "status":
-                        return PostFacebookStatus(parameters, username);
+                        return PostFacebookMessage(parameters, "me");
                 }
 
 
@@ -188,10 +222,6 @@ namespace CoLiW
             return false;
         }
 
-        private static bool PostFacebookStatus(string[] parameters, string username)
-        {
-            return false;
-        }
 
         private static bool PostFacebookPhoto(string[] parameters, string username)
         {
@@ -209,7 +239,7 @@ namespace CoLiW
                         keyValue[1] += ":" + keyValue[2];
                     if (keyValue.Length < 2)
                         return false;
-                    keyValue[1] = keyValue[1].Trim('"');
+                    keyValue[1] = keyValue[1].Trim('\"');
 
                     options.Add(keyValue[0], keyValue[1]);
                 }
@@ -217,6 +247,9 @@ namespace CoLiW
                 {
                     switch (keyValuePair.Key)
                     {
+                        case "-u":
+                            username = keyValuePair.Value;
+                            break;
                         case "-pn":
                             photoDetails.FacebookName = keyValuePair.Value;
                             break;
@@ -260,27 +293,15 @@ namespace CoLiW
                 Console.WriteLine(String.Format("{0}. {1}", i, album.AlbumName));
                 i++;
             }
-
+            if(albums.Count == 0)
+                throw new Exception("No album returned. You may not have the permission to see the albums of " + username);
             Console.WriteLine("Type a number:");
             string selectedAlbum = Console.ReadLine();
 
             Int32.TryParse(selectedAlbum, out i);
             return albums[i - 1].Id;
         }
-
-        private static string Get(string[] parameters)
-        {
-            if (parameters.Length < 2)
-                throw new InvalidCommand("Not enough parameters");
-            switch (parameters[1])
-            {
-                case "facebook":
-                    return GetFacebook(parameters);
-                default:
-                    throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
-            }
-        }
-
+        
         private static string GetFacebook(string[] parameters)
         {
             try
@@ -301,6 +322,8 @@ namespace CoLiW
 
                 switch (parameters[2])
                 {
+                    case "profilepic":
+                        return GetFacebookProfilePic(parameters, username);
                     case "albums":
                         return ShowAlbums(username);
                     case "name":
@@ -331,6 +354,71 @@ namespace CoLiW
             }
         }
 
+        private static string GetFacebookProfilePic(string[] parameters, string username)
+        {
+            try
+            {
+                if (username.CompareTo("me") == 0)
+                    username = _apiManager.FacebookClient.GetUserDetails(username).Username;
+
+                Dictionary<string, string> options = new Dictionary<string, string>();
+
+                for (int i = 3; i < parameters.Length; i++ )
+                {
+                    string[] values = parameters[i].Split(':');
+
+                    if (values.Length > 2)
+                        values[1] += ":" + values[2];
+                    if(values.Length < 2)
+                        throw new InvalidCommand("Wrong options");
+                    values[1] = values[1].Trim('\"');
+
+                    options[values[0]] = values[1];
+                }
+                string path = null;
+                string size = null;
+                foreach (KeyValuePair<string, string> keyValuePair in options)
+                {
+                    switch (keyValuePair.Key)
+                    {
+                        case "-p":
+                            path = keyValuePair.Value;
+                            break;
+                        case "-s":
+                            size = keyValuePair.Value;
+                            break;
+                        default:
+                            throw new InvalidCommand("Wrong option: " + keyValuePair.Key);
+                    }
+                }
+                if (size == null)
+                    size = "large";
+                else if (size.Length < 2)
+                {
+                    string[] sizes = { "small", "large", "square" };
+                    int s = 0;
+                    Int32.TryParse(options["-s"], out s);
+                    if (s < 0 || s > 2)
+                        throw new InvalidCommand("You must provide a size value between 0 and 2, or one of the following values:small, large and square");
+                    size = sizes[s];
+                }
+
+                if(path == null)
+                {
+                    Console.WriteLine("Type the path for the photo:(ex: c:\\myprofilepic.jpg");
+                    path = Console.ReadLine();
+                }
+                
+                
+                _apiManager.FacebookClient.GetUrlImage("https://graph.facebook.com/" + username + "/picture?type=" + size, path);
+                return "Image saved at: " + path;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+        }
+
         private static string ShowAlbums(string username)
         {
             var albums = _apiManager.FacebookClient.GetAlbums(username);
@@ -343,47 +431,9 @@ namespace CoLiW
             return builder.ToString();
         }
 
-        private static void Logout(string[] parameters)
-        {
-            if (parameters.Length < 2)
-                throw new InvalidCommand("You forgot to specify the app");
-            try
-            {
-                switch (parameters[1])
-                {
-                    case "facebook":
-                        _apiManager.FacebookClient.Logout();
-                        break;
-                    default:
-                        throw new InvalidCommand("Invalid app selected for logout.");
-                }
-            }
-            catch (Exception exception)
-            {
-                Console.WriteLine(exception.Message);
-            }
-        }
+        #endregion
 
-        private static void Login(string[] parameters)
-        {
-            if (parameters.Length < 2)
-                throw new InvalidCommand("You forgot to specify the app");
-            switch (parameters[1])
-            {
-                case "facebook":
-                    if (parameters.Length == 4)
-                        _apiManager.FacebookClient.Login(parameters[2], parameters[3], false);
-                    else if (parameters.Length == 2)
-                    {
-                        _apiManager.FacebookClient.Login(false);
-                    }
-                    else throw new InvalidCommand("Wrong number of parameters");
-                    break;
-                default:
-                    throw new InvalidCommand("Wrong command");
-            }
-        }
-
+        #region Utils
         private static string ToLower(string command)
         {
             string newCommand = null;
@@ -393,5 +443,28 @@ namespace CoLiW
             }
             return newCommand;
         }
+
+        public static String[] ParseArguments(string args)
+        {
+            List<String> parameters = new List<string>();
+            bool add = false;
+            string parameter = null;
+            foreach (char c in args)
+            {
+                if (c == '\"')
+                    add = !add;
+                if (c == ' ')
+                    if (add == false)
+                    {
+                        parameters.Add(parameter);
+                        parameter = string.Empty;
+                        continue;
+                    }
+                parameter += c;
+            }
+            parameters.Add(parameter);
+            return parameters.ToArray();
+        }
+        #endregion
     }
 }

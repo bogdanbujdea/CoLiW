@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Dynamic;
+using System.IO;
+using System.Net;
 using System.Security.Authentication;
 using System.Windows.Forms;
 using Facebook;
@@ -15,7 +18,8 @@ namespace CoLiW
 
         public Facebook()
         {
-            
+            FbLoginForm = new FacebookLoginForm();
+            FbLoginForm.Browser.Navigated += BrowserNavigated;
         }
 
         public Facebook(string appId, string appSecret)
@@ -134,14 +138,12 @@ namespace CoLiW
                 AppId = appId;
                 AppSecret = appSecret;
 
-                Login(forceLogin);
+                return Login(forceLogin);
             }
             catch
             {
                 return false;
             }
-
-            return true;
         }
 
         private bool ValidateLoginCredentials(string appId, string appSecret)
@@ -197,6 +199,37 @@ namespace CoLiW
                                       };
             var resul = Post("/me/albums", albumParameters) as JsonObject;
             return false;
+        }
+
+        public Image GetUrlImage(string url, string path)
+        {
+            WebResponse result = null;
+            Image rImage = null;
+            try
+            {
+                WebRequest request = WebRequest.Create(url);
+                result = request.GetResponse();
+                Stream stream = result.GetResponseStream();
+                if (stream != null)
+                {
+                    var br = new BinaryReader(stream);
+                    byte[] rBytes = br.ReadBytes(1000000);
+                    br.Close();
+                    result.Close();
+                    var imageStream = new MemoryStream(rBytes, 0, rBytes.Length);
+                    imageStream.Write(rBytes, 0, rBytes.Length);
+                    rImage = Image.FromStream(imageStream, true);
+                    File.WriteAllBytes(path, rBytes);
+                    imageStream.Close();
+                }
+            }
+            catch { }
+            finally
+            {
+                if (result != null) result.Close();
+            }
+            return rImage;
+
         }
 
         public List<AlbumDetails> GetAlbums(string username)
