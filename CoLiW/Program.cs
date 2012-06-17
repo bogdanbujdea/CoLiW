@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using Facebook;
 
 namespace CoLiW
@@ -22,12 +23,9 @@ namespace CoLiW
                     Console.WriteLine("Type a command:");
                     string command = Console.ReadLine();
                     command = ToLower(command);
-                    string[] parameters = command.Split(' ');
+                    string[] parameters = ParseArguments(command);
                     switch (parameters[0])
                     {
-                        case "test":
-                            _apiManager.FacebookClient.GetAlbums("bogdanbujdea");
-                            break;
                         case "login":
                             Login(parameters);
                             break;
@@ -52,7 +50,29 @@ namespace CoLiW
             }
         }
 
-        private static string Post(string[] parameters)
+        public static String[] ParseArguments(string args)
+        {
+            List<String> parameters = new List<string>();
+            bool add = false;
+            string parameter = null;
+            foreach (char c in args)
+            {
+                if (c == '\"')
+                    add = !add;
+                if (c == ' ')
+                    if (add == false)
+                    {
+                        parameters.Add(parameter);
+                        parameter = string.Empty;
+                        continue;
+                    }
+                parameter += c;
+            }
+            parameters.Add(parameter);
+            return parameters.ToArray();
+        }
+
+        private static bool Post(string[] parameters)
         {
             if (parameters.Length < 2)
                 throw new InvalidCommand("Not enough parameters");
@@ -62,67 +82,172 @@ namespace CoLiW
                     return PostFacebook(parameters);
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
-                    break;
             }
-            return "";
         }
 
-        private static string PostFacebook(string[] parameters)
+        private static bool PostFacebook(string[] parameters)
         {
             try
             {
-                string username;
-                if (parameters.Contains("-u") == false)
+                string username = null;
+                foreach (string parameter in parameters)
                 {
-                    username = "me";
+                    if (parameter.Contains("-u"))
+                    {
+                        var p = parameter.Split(':');
+                        if (p.Length < 2)
+                            username = "me";
+                        else
+                            username = p[1];
+                        break;
+                    }
                 }
-                else
+
+
+                switch (parameters[2])
                 {
-                    var param = new List<string>(parameters);
-                    int index = param.IndexOf("-u") + 1;
-                    if (index < 0 || index > param.Count)
-                        throw new InvalidCommand(
-                            "Command not formated properly. Example: 'post facebook name -u johnsmith'"); //needs to be changed
-                    username = param.ElementAt(index);
+                    case "message":
+                        return PostFacebookMessage(parameters, username);
+                    case "photo":
+                        return PostFacebookPhoto(parameters, username);
+                    case "album":
+                        return PostFacebookAlbum(parameters, username);
+                    case "status":
+                        return PostFacebookStatus(parameters, username);
                 }
+
+
+
+
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        private static bool PostFacebookMessage(string[] parameters, string username)
+        {
+            try
+            {
+                var details = new PostDetails();
+                Dictionary<string, string> options = new Dictionary<string, string>();
+
+                for (int i = 3; i < parameters.Length; i++)
+                {
+                    string[] keyvalue = parameters[i].Split(':');
+
+                    if (keyvalue.Length > 2)
+                        keyvalue[1] += ":" + keyvalue[2];
+                    if (keyvalue.Length < 2)
+                        return false;
+                    keyvalue[1] = keyvalue[1].Trim('\"');
+                    options[keyvalue[0]] = keyvalue[1];
+                }
+
+                foreach (KeyValuePair<string, string> keyValuePair in options)
+                {
+                    switch (keyValuePair.Key)
+                    {
+                        case "-m":
+                            details.Message = keyValuePair.Value;
+                            break;
+                        case "-n":
+                            details.Name = keyValuePair.Value;
+                            break;
+                        case "-c":
+                            details.Caption = keyValuePair.Value;
+                            break;
+                        case "-l":
+                            details.Link = keyValuePair.Value;
+                            break;
+                        case "-p":
+                            details.PictureUrl = keyValuePair.Value;
+                            break;
+                        case "-d":
+                            details.Description = keyValuePair.Value;
+                            break;
+                        case "-u":
+                            break;
+                        default:
+                            throw new InvalidCommand("Invalid option: " + keyValuePair.Key);
+                    }
+                }
+                _apiManager.FacebookClient.PostMessage(username, details);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool PostFacebookAlbum(string[] parameters, string username)
+        {
+            return false;
+        }
+
+        private static bool PostFacebookStatus(string[] parameters, string username)
+        {
+            return false;
+        }
+
+        private static bool PostFacebookPhoto(string[] parameters, string username)
+        {
+            try
+            {
+
                 var photoDetails = new PhotoDetails();
 
-                for (int i = 2; i < parameters.Length; i++)
+                Dictionary<string, string> options = new Dictionary<string, string>();
+
+                for (int i = 3; i < parameters.Length; i++)
                 {
-                    switch (parameters[i])
+                    String[] keyValue = parameters[i].Split(':');
+                    if (keyValue.Length > 2)
+                        keyValue[1] += ":" + keyValue[2];
+                    if (keyValue.Length < 2)
+                        return false;
+                    keyValue[1] = keyValue[1].Trim('"');
+
+                    options.Add(keyValue[0], keyValue[1]);
+                }
+                foreach (KeyValuePair<string, string> keyValuePair in options)
+                {
+                    switch (keyValuePair.Key)
                     {
-                        case "fn":
-                            photoDetails.FacebookName = parameters[i + 1];
+                        case "-pn":
+                            photoDetails.FacebookName = keyValuePair.Value;
                             break;
-                        case "pd":
-                            photoDetails.PhotoDescription = parameters[i + 1];
+                        case "-pd":
+                            photoDetails.PhotoDescription = keyValuePair.Value;
                             break;
-                        case "aid":
-                            photoDetails.AlbumId = parameters[i + 1];
+                        case "-aid":
+                            photoDetails.AlbumId = keyValuePair.Value;
                             break;
-                        case "ad":
-                            photoDetails.AlbumDescription = parameters[i + 1];
+                        case "-ad":
+                            photoDetails.AlbumDescription = keyValuePair.Value;
                             break;
-                        case "an":
-                            photoDetails.AlbumName = parameters[i + 1];
+                        case "-an":
+                            photoDetails.AlbumName = keyValuePair.Value;
                             break;
-                        case "path":
-                            photoDetails.ImageStream = File.ReadAllBytes(parameters[i + 1]);
+                        case "-p":
+                            photoDetails.ImageStream = File.ReadAllBytes(keyValuePair.Value);
                             break;
                     }
-                   
+
                 }
                 if (string.IsNullOrEmpty(photoDetails.AlbumId))
                 {
                     photoDetails.AlbumId = ChooseAlbumId(username);
                 }
-                _apiManager.FacebookClient.AddPhoto(photoDetails);
+                return _apiManager.FacebookClient.AddPhoto(photoDetails);
             }
-            catch (Exception exception)
+            catch
             {
-                return exception.Message;
+                return false;
             }
-            return "";
         }
 
         private static string ChooseAlbumId(string username)
@@ -151,7 +276,6 @@ namespace CoLiW
             {
                 case "facebook":
                     return GetFacebook(parameters);
-                    break;
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
@@ -162,22 +286,23 @@ namespace CoLiW
             try
             {
                 string username = "me";
-                if (parameters.Contains("-u") == false)
+                foreach (string parameter in parameters)
                 {
-                    username = "me";
-                }
-                else
-                {
-                    var param = new List<string>(parameters);
-                    int index = param.IndexOf("-u") + 1;
-                    if (index < 0 || index > param.Count)
-                        throw new InvalidCommand(
-                            "Command not formated properly. Example: 'get facebook name -u johnsmith'");
-                    username = param.ElementAt(index);
+                    if (parameter.Contains("-u"))
+                    {
+                        var p = parameter.Split(':');
+                        if (p.Length < 2)
+                            username = "me";
+                        else
+                            username = p[1].Trim('\"');
+                        break;
+                    }
                 }
 
                 switch (parameters[2])
                 {
+                    case "albums":
+                        return ShowAlbums(username);
                     case "name":
                         return _apiManager.FacebookClient.GetUserDetails(username).Name;
                     case "first_name":
@@ -206,6 +331,18 @@ namespace CoLiW
             }
         }
 
+        private static string ShowAlbums(string username)
+        {
+            var albums = _apiManager.FacebookClient.GetAlbums(username);
+            StringBuilder builder = new StringBuilder();
+            foreach (AlbumDetails albumDetails in albums)
+            {
+                builder.Append(albumDetails.AlbumName);
+                builder.Append("\n");
+            }
+            return builder.ToString();
+        }
+
         private static void Logout(string[] parameters)
         {
             if (parameters.Length < 2)
@@ -219,7 +356,6 @@ namespace CoLiW
                         break;
                     default:
                         throw new InvalidCommand("Invalid app selected for logout.");
-                        break;
                 }
             }
             catch (Exception exception)

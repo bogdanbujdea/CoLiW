@@ -24,8 +24,6 @@ namespace CoLiW
             AppSecret = appSecret;
             FbLoginForm = new FacebookLoginForm();
             FbLoginForm.Browser.Navigated += BrowserNavigated;
-            if (IsLoggedIn() && string.IsNullOrEmpty(AccessToken) == true)
-                Login(false);
 
         }
 
@@ -105,13 +103,34 @@ namespace CoLiW
             }
         }
 
+        public bool PostMessage(string username, PostDetails details)
+        {
+            try
+            {
+                var args = new Dictionary<string, object>();
+                args["name"] = details.Name ?? string.Empty;
+                args["name"] = details.Name ?? string.Empty;
+                args["link"] = details.Link ?? string.Empty;
+                args["caption"] = details.Caption ?? string.Empty;
+                args["description"] = details.Description ?? string.Empty;
+                args["picture"] = details.PictureUrl ?? string.Empty;
+                args["message"] = details.Message ?? string.Empty;
+                args["actions"] = "";
+
+                Post("/" + username + "/feed", args);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception.Message);
+            }
+            return false;
+        }
 
         public bool Login(string appId, string appSecret, bool forceLogin)
         {
             try
             {
-                ValidateLoginCredentials(appId, appSecret);
-
                 AppId = appId;
                 AppSecret = appSecret;
 
@@ -203,37 +222,6 @@ namespace CoLiW
             return albumDetails;
         }
 
-        public bool PostPhotoToWall(PhotoDetails photoDetails)
-        {
-            dynamic messagePost = new ExpandoObject();
-            messagePost.picture = "http://yaplex.com/uploads/yaplex-logo-with-text-small.png";
-            messagePost.link = "http://yaplex.com/";
-            messagePost.name = "[name] Facebook name...";
-
-            // "{*actor*} " + "posted news..."; //<---{*actor*} is the user (i.e.: Alex)
-            messagePost.caption = " Facebook caption";
-            messagePost.description =
-                "[description] Facebook description...";
-            messagePost.message = "[message] Facebook message...";
-
-            string acccessToken =
-                "xxxx5120330xxxx|4xxxxx0c0f95bd3f62dxxxxx.1-10000xx4x73xxxx|2xx5xxx0566xxxx|z2xxxx37dxxxxsdDS23s_Sah34a";
-            FacebookClient appp = new FacebookClient(acccessToken);
-            try
-            {
-                var postId = appp.Post("24351740xxxxxx" + "/feed", messagePost);
-            }
-            catch (FacebookOAuthException ex)
-            {
-                //handle oauth exception
-            }
-            catch (FacebookApiException ex)
-            {
-                //handle facebook exception
-            }
-            return false;
-        }
-
         public UserDetails GetUserDetails(string userName)
         {
             if(FbLoginForm.IsLoggedIn == false)
@@ -257,7 +245,6 @@ namespace CoLiW
                 userDetails.Id = (string) user.id;
             return userDetails;
         }
-
 
         private void BrowserNavigated(object sender, WebBrowserNavigatedEventArgs e)
         {
