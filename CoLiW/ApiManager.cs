@@ -14,6 +14,8 @@ namespace CoLiW
 
         public Facebook FacebookClient { get; set; }
 
+        public Twitter TwitterClient { get; set; }
+
         public void ProcessMessage(string message)
         {
             
@@ -22,6 +24,11 @@ namespace CoLiW
         public void InitializeFacebook(string appId, string appSecret)
         {
             FacebookClient = new Facebook(appId, appSecret);
+        }
+
+        public void InitializeTwitter(string consumerId, string consumerSecret)
+        {
+            TwitterClient = new Twitter(consumerId, consumerSecret);
         }
     }
 }

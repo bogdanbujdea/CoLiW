@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using Facebook;
+using TweetSharp;
 
 namespace CoLiW
 {
@@ -16,6 +17,7 @@ namespace CoLiW
         {
             _apiManager = new ApiManager();
             _apiManager.InitializeFacebook("372354616159806", "5ccc6315874961c13249003ef9ed279f");
+            _apiManager.InitializeTwitter("LxfSyKV8laf2HuWdzblXw", "PpoiRPC4i9sJBbM14PHRNE7GDfqrZSBdlRALASEBak");
             while (true)
             {
                 try
@@ -45,6 +47,9 @@ namespace CoLiW
 
                 switch (parameters[0])
                 {
+                    case "test":
+                        _apiManager.TwitterClient.Follow("@dinu_suman");
+                        break;
                     case "login":
                         return Login(parameters);
                     case "logout":
@@ -61,7 +66,6 @@ namespace CoLiW
             }
             catch (Exception exception)
             {
-                Console.WriteLine(exception.Message);
                 return exception.Message;
             }
         }
@@ -96,7 +100,7 @@ namespace CoLiW
                 {
                     return "Get error: " + exception.Message;
                 }
-                
+
                 parameters = ParseArguments(commands[0]);
                 commands[0] = string.Empty;
                 for (int i = 0; i < parameters.Length; i++)
@@ -128,10 +132,18 @@ namespace CoLiW
             {
                 case "facebook":
                     if (parameters.Length == 4)
-                        return _apiManager.FacebookClient.Login(parameters[2], parameters[3], false).ToString();
+                        return _apiManager.FacebookClient.Login(parameters[2], parameters[3], false).ToString(CultureInfo.InvariantCulture);
                     if (parameters.Length == 2)
                     {
-                        return _apiManager.FacebookClient.Login(false).ToString();
+                        return _apiManager.FacebookClient.Login(false).ToString(CultureInfo.InvariantCulture);
+                    }
+                    throw new InvalidCommand("Wrong number of parameters");
+                case "twitter":
+                    if (parameters.Length == 4)
+                        return _apiManager.TwitterClient.Login(parameters[2], parameters[3], false).ToString(CultureInfo.InvariantCulture);
+                    if (parameters.Length == 2)
+                    {
+                        return _apiManager.TwitterClient.Login(false).ToString(CultureInfo.InvariantCulture);
                     }
                     throw new InvalidCommand("Wrong number of parameters");
                 default:
@@ -167,9 +179,47 @@ namespace CoLiW
             {
                 case "facebook":
                     return GetFacebook(parameters);
+                case "twitter":
+                    return GetTwitter(parameters);
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
+        }
+
+        private static string GetTwitter(string[] parameters)
+        {
+            if(parameters.Length < 3)
+                throw new InvalidCommand("You need at least 3 arguments for a GET command");
+
+            switch (parameters[2])
+            {
+                case "retweet":
+                    return GetRetweet(parameters);
+            }
+            return "";
+        }
+
+        private static string GetRetweet(string[] parameters)
+        {
+            var options = GetParameters(parameters, 3);
+            if(options.Count == 0)
+                throw new InvalidCommand("Not enough arguments");
+            foreach (KeyValuePair<string, string> keyValuePair in options)
+            {
+                switch (keyValuePair.Key)
+                {
+                    case "-sd":
+                        long date = 0;
+                        IFormatProvider culture = new System.Globalization.CultureInfo("fr-FR", true);
+                        DateTime startDate = DateTime.Parse(keyValuePair.Value, culture, System.Globalization.DateTimeStyles.AssumeLocal);
+                        string longTimeString = startDate.ToLongTimeString();
+                        long.TryParse(longTimeString, out date);
+                        _apiManager.TwitterClient.ListRetweetsByMe(date);
+                        break;
+                }
+            }
+            return "";
+
         }
 
         private static bool Post(string[] parameters)
@@ -424,7 +474,7 @@ namespace CoLiW
         {
             try
             {
-                if (username.CompareTo("me") == 0)
+                if (String.CompareOrdinal(username, "me") == 0)
                     username = _apiManager.FacebookClient.GetUserDetails(username).Username;
 
                 var options = new Dictionary<string, string>();
@@ -513,6 +563,27 @@ namespace CoLiW
                 newCommand += Char.ToLower(command[i]);
             }
             return newCommand;
+        }
+
+        private static Dictionary<string, string> GetParameters(string[] parameters, int indexStart)
+        {
+            var dictionary = new Dictionary<string, string>();
+
+            for (int i = indexStart; i < parameters.Length; i++)
+            {
+                string[] keyValue = parameters[i].Split(':');
+
+                if (keyValue.Length > 3)
+                {
+                    keyValue[1] = keyValue[1] + ":" + keyValue[2];
+                }
+                if (keyValue.Length < 2)
+                    return null;
+                keyValue[0] = keyValue[0].Trim('\"');
+                keyValue[1] = keyValue[1].Trim('\"');
+                dictionary[keyValue[0]] = keyValue[1];
+            }
+            return dictionary;
         }
 
         public static String[] ParseArguments(string args)
