@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using Facebook;
@@ -35,52 +36,11 @@ namespace CoLiW
         {
             try
             {
+                command = ToLower(command);
                 string[] parameters = null;
-                string[] commands = null;
-                if (command.Contains("|"))
-                {
-                    commands = command.Split('|');
-                    if (commands.Length > 2) return "Too many commands";
-
-                    commands[0] = commands[0].Trim();
-                    commands[1] = commands[1].Trim();
-
-                    if(commands[0].StartsWith("get") && commands[1].StartsWith("post"))
-                    {
-                        string tmp = commands[0];
-                        commands[0] = commands[1];
-                        commands[1] = tmp;
-                    }
-                    else if(commands[0].StartsWith("post") == false || commands[1].StartsWith("get") == false)
-                        throw new InvalidCommand("For a mashup, you must type a post command followed by pipe and get command");
-
-                    string retVal = null;
-                    try
-                    {
-                        retVal = ProcessCommand(commands[1]);
-                    }
-                    catch (Exception exception)
-                    {
-                        return "Get error: " + exception.Message;
-                    }
-                    parameters = ParseArguments(commands[0]);
-                    commands[0] = string.Empty;
-                    for (int i = 0; i < parameters.Length; i++)
-                    {
-                        var opts = parameters[i].Split(':');
-                        if (opts.Length == 2)
-                            if (opts[1].Length == 0)
-                            {
-                                parameters[i] += "\"" + retVal + "\"";
-                            }
-                            else if (opts[1].Contains("{@}"))
-                                parameters[i] = opts[0] + ":" + opts[1].Replace("{@}", retVal);
-                        commands[0] += " " + parameters[i]; //rebuild the command
-                    }
-                    commands[0] = commands[0].Trim(); //remove spaces
-                    return ProcessCommand(commands[0]); //execute the command
-
-                }
+                string retVal = CheckForMashups(command);
+                if (retVal != "")
+                    return retVal;
                 parameters = ParseArguments(command);
 
                 switch (parameters[0])
@@ -92,7 +52,7 @@ namespace CoLiW
                     case "get":
                         return Get(parameters);
                     case "post":
-                        return Post(parameters).ToString();
+                        return Post(parameters).ToString(CultureInfo.InvariantCulture);
                     default:
                         Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
                         break;
@@ -104,6 +64,58 @@ namespace CoLiW
                 Console.WriteLine(exception.Message);
                 return exception.Message;
             }
+        }
+
+        public static string CheckForMashups(string command)
+        {
+            if (command.Contains("|"))
+            {
+                string[] parameters = null;
+                string[] commands = null;
+                commands = command.Split('|');
+                if (commands.Length > 2) return "Too many commands";
+
+                commands[0] = commands[0].Trim();
+                commands[1] = commands[1].Trim();
+
+                if (commands[0].StartsWith("get") && commands[1].StartsWith("post"))
+                {
+                    string tmp = commands[0];
+                    commands[0] = commands[1];
+                    commands[1] = tmp;
+                }
+                else if (commands[0].StartsWith("post") == false || commands[1].StartsWith("get") == false)
+                    throw new InvalidCommand("For a mashup, you must type a post command followed by pipe and get command");
+
+                string retVal;
+                try
+                {
+                    retVal = ProcessCommand(commands[1]);
+                }
+                catch (Exception exception)
+                {
+                    return "Get error: " + exception.Message;
+                }
+                
+                parameters = ParseArguments(commands[0]);
+                commands[0] = string.Empty;
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    var opts = parameters[i].Split(':');
+                    if (opts.Length == 2)
+                        if (opts[1].Length == 0)
+                        {
+                            parameters[i] += "\"" + retVal + "\"";
+                        }
+                        else if (opts[1].Contains("{@}"))
+                            parameters[i] = opts[0] + ":" + opts[1].Replace("{@}", retVal);
+                    commands[0] += " " + parameters[i]; //rebuild the command
+                }
+                commands[0] = commands[0].Trim(); //remove spaces
+                return ProcessCommand(commands[0]); //execute the command
+
+            }
+            return "";
         }
 
         #region Main commands
@@ -208,8 +220,10 @@ namespace CoLiW
                         return PostFacebookMessage(parameters, "me");
                 }
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                if (exception is FacebookOAuthException)
+                    _apiManager.FacebookClient.FbLoginForm.IsLoggedIn = false;
                 return false;
             }
             return true;
@@ -438,6 +452,8 @@ namespace CoLiW
                             break;
                         case "-s":
                             size = keyValuePair.Value;
+                            break;
+                        case "-u":
                             break;
                         default:
                             throw new InvalidCommand("Wrong option: " + keyValuePair.Key);

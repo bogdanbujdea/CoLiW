@@ -54,14 +54,14 @@
   <ItemGroup>
     <Compile Include="AlbumDetails.cs" />
     <Compile Include="ApiManager.cs" />
-    <Compile Include="Facebook.cs" />
-    <Compile Include="FacebookLoginForm.cs">
+    <Compile Include="Facebook\Facebook.cs" />
+    <Compile Include="Facebook\FacebookLoginForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="FacebookLoginForm.Designer.cs">
+    <Compile Include="Facebook\FacebookLoginForm.Designer.cs">
       <DependentUpon>FacebookLoginForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="FacebookTests.cs" />
+    <Compile Include="Facebook\FacebookTests.cs" />
     <Compile Include="InvalidCommand.cs" />
     <Compile Include="PhotoDetails.cs" />
     <Compile Include="PostDetails.cs" />
@@ -73,7 +73,7 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="FacebookLoginForm.resx">
+    <EmbeddedResource Include="Facebook\FacebookLoginForm.resx">
       <DependentUpon>FacebookLoginForm.cs</DependentUpon>
     </EmbeddedResource>
   </ItemGroup>
