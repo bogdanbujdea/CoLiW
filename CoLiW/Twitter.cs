@@ -1,15 +1,18 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
-using TweetSharp;
+using Twitterizer;
+using TwitterUser = Twitterizer.TwitterUser;
 
 namespace CoLiW
 {
-    public class Twitter : TwitterService
+    public class Twitter 
     {
         public Twitter()
         {
@@ -17,16 +20,27 @@ namespace CoLiW
         }
 
         public Twitter(string consumerKey, string consumerSecret)
-            : base(consumerKey, consumerSecret)
         {
             ConsumerKey = consumerKey;
             ConsumerSecret = consumerSecret;
             LoginForm = new TwitterLoginForm();
             LoginForm.Browser.Navigated += BrowserNavigated;
-
+            Tokens = new OAuthTokens();
+            Tokens.ConsumerKey = consumerKey;
+            Tokens.ConsumerSecret = consumerSecret;
         }
 
-        void BrowserNavigated(object sender, System.Windows.Forms.WebBrowserNavigatedEventArgs e)
+        public OAuthTokens Tokens { get; set; }
+
+        public string ConsumerKey { get; set; }
+
+        public string ConsumerSecret { get; set; }
+
+        public string Pin { get; set; }
+
+        public TwitterLoginForm LoginForm { get; set; }
+
+        void BrowserNavigated(object sender, WebBrowserNavigatedEventArgs e)
         {
             var htmlString = LoginForm.Browser.DocumentText;
             Regex expression = new Regex(@"<code>(?<word>\w+)</code>");
@@ -40,16 +54,6 @@ namespace CoLiW
             }
         }
 
-        public TwitterLoginForm LoginForm { get; set; }
-
-        public string ConsumerKey { get; set; }
-
-        public string ConsumerSecret { get; set; }
-
-        public string AccessToken { get; set; }
-
-        public string Pin { get; set; }
-
         public bool Login(bool forcedLogin)
         {
             try
@@ -61,28 +65,32 @@ namespace CoLiW
                     //if the user is logged in, and forcelogin = true, then logout first
                     Logout();
 
-                if (Token != null && TokenSecret != null)
-                {
-                    AuthenticateWith(Token, TokenSecret);
-                    return true;
-                }
+//                if (Tokens.AccessToken != null && Tokens.AccessTokenSecret != null)
+//                {
+//                    //AuthenticateWith(Token, TokenSecret);
+//                    return true;
+//                }
                 // Step 1 - Retrieve an OAuth Request Token
-                OAuthRequestToken requestToken = GetRequestToken("oob");
-                
+                string token = OAuthUtility.GetRequestToken(ConsumerKey, ConsumerSecret, "oob").Token;
+
+
+
                 // Step 2 - Redirect to the OAuth Authorization URL
-                Uri uri = GetAuthorizationUri(requestToken);
+                Uri uri = OAuthUtility.BuildAuthorizationUri(token);
                 LoginForm.Browser.Navigate(uri);
-                //Console.WriteLine("A 7-digit code will appear in the window after you authorize the app.\nPlease copy that code, close the window, and insert it in this console and hit <Enter> key:");
+                
                 DialogResult loginResult = LoginForm.ShowDialog();
                 if (loginResult != DialogResult.OK)
                 {
                     Console.WriteLine("Login was unsuccesful");
                     return false;
                 }
-                OAuthAccessToken access = GetAccessToken(requestToken, Pin);
-                AuthenticateWith(access.Token, access.TokenSecret); Token = access.Token;
-                TokenSecret = access.TokenSecret;
-                Token = access.Token;
+                OAuthTokenResponse accessToken = OAuthUtility.GetAccessToken(ConsumerKey, ConsumerSecret, token, Pin);
+
+                Tokens.AccessToken = accessToken.Token;
+                Tokens.AccessTokenSecret = accessToken.TokenSecret;
+                Console.WriteLine("Esti logat ca " + accessToken.ScreenName);
+                LoginForm.IsLoggedIn = true;
                 return true;
             }
             catch (Exception exception)
@@ -91,35 +99,80 @@ namespace CoLiW
             }
         }
 
-        private void Logout()
+        public bool Logout()
         {
-
+            LoginForm.IsLoggedIn = false;
+            return true;
         }
 
-        public string TokenSecret { get; set; }
-
-        public string Token { get; set; }
-
-        public bool Login(string consumerId, string consumerSecret, bool forcedLogin)
+        public bool Unfollow(string username)
         {
+            var response = Twitterizer.TwitterFriendship.Delete(Tokens, username);
+
+            if (response.Result == RequestResult.Success)
+                return true;
+            throw new TwitterizerException(response.ErrorMessage);
+        }
+
+        public bool SetBackgroundImage(string path)
+        {
+                TwitterResponse<TwitterUser> response = TwitterAccount.UpdateProfileBackgroundImage(Tokens, File.ReadAllBytes(path));
+
+                if (response.Result == RequestResult.Success)
+                    return true;
+                throw new InvalidCommand(response.ErrorMessage);
+        }
+
+        public bool Login(string consumerKey, string consumerSecret, bool forcedLogin)
+        {
+            ConsumerKey = consumerKey;
+            ConsumerSecret = consumerSecret;
+            return Login(forcedLogin);
+        }
+        
+        public bool Follow(string username)
+        {
+            var response = Twitterizer.TwitterFriendship.Create(Tokens, username);
+
+            if(response.Result == RequestResult.Success)
+                return true;
+            throw new TwitterizerException(response.ErrorMessage);
+        }
+
+        public bool SendMessage(string text, string username)
+        {
+            if(username == null || text == null)
+                throw new InvalidCommand("You must specify a username and a text message");
+            if (text.Length > 140)
+                throw new InvalidCommand("The limit for direct messages is of 140 characters, your message has " + text.Length);
+            var response = TwitterDirectMessage.Send(Tokens, username, text);
+            if (response.Result == RequestResult.Success)
+                return true;
             return false;
         }
 
-        public TwitterStatus GetRetweet(int index)
+        public bool UpdateStatus(string text, string path)
         {
-            IEnumerable<TwitterStatus> listRetweetsByMe = ListRetweetsByMe();
-            if(listRetweetsByMe == null)
-                throw new NullReferenceException("There are no retweets");
-            int count = listRetweetsByMe.Count();
-            if(index < 0 || index > count)
-                throw new IndexOutOfRangeException("There are only " + listRetweetsByMe.Count());
-            return listRetweetsByMe.ElementAt(index);
+            //IAsyncResult result = TwitterStatusAsync.UpdateWithMedia(Tokens, "Salut", File.ReadAllBytes(path), new TimeSpan(1, 0, 0), delegate(TwitterAsyncResponse<TwitterStatus> asyncResponse) { Console.WriteLine("Status updated"); });
+            TwitterResponse<TwitterStatus> response = null;
+            if (text.Length > 140)
+                throw new InvalidCommand("The limit for tweets is of 140 characters, your tweet has " + text.Length);
+            if (path == null)
+                response = TwitterStatus.Update(Tokens, text);
+            else
+                response = TwitterStatus.UpdateWithMedia(Tokens, text, File.ReadAllBytes(path));
+            if (response.Result == RequestResult.Success)
+                return true;
+            return false;
         }
-    
-        public bool Follow(string username)
+
+        public bool UpdateProfilePicture(string path)
         {
-            string url = "https://api.twitter.com/1/friendships/create.json";
-            return true;
+            var response = TwitterAccount.UpdateProfileImage(Tokens, File.ReadAllBytes(path));
+            
+            if (response.Result == RequestResult.Success)
+                return true;
+            return false;
         }
     }
 }

@@ -10,8 +10,6 @@ namespace CoLiW
            
         }
 
-        
-
         public Facebook FacebookClient { get; set; }
 
         public Twitter TwitterClient { get; set; }

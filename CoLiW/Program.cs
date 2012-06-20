@@ -4,7 +4,6 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using Facebook;
-using TweetSharp;
 
 namespace CoLiW
 {
@@ -32,95 +31,10 @@ namespace CoLiW
                     Console.WriteLine(exception.Message);
                 }
             }
+            // ReSharper disable FunctionNeverReturns
         }
 
-        private static string ProcessCommand(string command)
-        {
-            try
-            {
-                command = ToLower(command);
-                string[] parameters = null;
-                string retVal = CheckForMashups(command);
-                if (retVal != "")
-                    return retVal;
-                parameters = ParseArguments(command);
-
-                switch (parameters[0])
-                {
-                    case "test":
-                        _apiManager.TwitterClient.Follow("@dinu_suman");
-                        break;
-                    case "login":
-                        return Login(parameters);
-                    case "logout":
-                        return Logout(parameters);
-                    case "get":
-                        return Get(parameters);
-                    case "post":
-                        return Post(parameters).ToString(CultureInfo.InvariantCulture);
-                    default:
-                        Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
-                        break;
-                }
-                return "Success";
-            }
-            catch (Exception exception)
-            {
-                return exception.Message;
-            }
-        }
-
-        public static string CheckForMashups(string command)
-        {
-            if (command.Contains("|"))
-            {
-                string[] parameters = null;
-                string[] commands = null;
-                commands = command.Split('|');
-                if (commands.Length > 2) return "Too many commands";
-
-                commands[0] = commands[0].Trim();
-                commands[1] = commands[1].Trim();
-
-                if (commands[0].StartsWith("get") && commands[1].StartsWith("post"))
-                {
-                    string tmp = commands[0];
-                    commands[0] = commands[1];
-                    commands[1] = tmp;
-                }
-                else if (commands[0].StartsWith("post") == false || commands[1].StartsWith("get") == false)
-                    throw new InvalidCommand("For a mashup, you must type a post command followed by pipe and get command");
-
-                string retVal;
-                try
-                {
-                    retVal = ProcessCommand(commands[1]);
-                }
-                catch (Exception exception)
-                {
-                    return "Get error: " + exception.Message;
-                }
-
-                parameters = ParseArguments(commands[0]);
-                commands[0] = string.Empty;
-                for (int i = 0; i < parameters.Length; i++)
-                {
-                    var opts = parameters[i].Split(':');
-                    if (opts.Length == 2)
-                        if (opts[1].Length == 0)
-                        {
-                            parameters[i] += "\"" + retVal + "\"";
-                        }
-                        else if (opts[1].Contains("{@}"))
-                            parameters[i] = opts[0] + ":" + opts[1].Replace("{@}", retVal);
-                    commands[0] += " " + parameters[i]; //rebuild the command
-                }
-                commands[0] = commands[0].Trim(); //remove spaces
-                return ProcessCommand(commands[0]); //execute the command
-
-            }
-            return "";
-        }
+        // ReSharper restore FunctionNeverReturns
 
         #region Main commands
 
@@ -132,19 +46,27 @@ namespace CoLiW
             {
                 case "facebook":
                     if (parameters.Length == 4)
-                        return _apiManager.FacebookClient.Login(parameters[2], parameters[3], false).ToString(CultureInfo.InvariantCulture);
+                        return
+                            _apiManager.FacebookClient.Login(parameters[2], parameters[3], false).ToString(
+                                CultureInfo.InvariantCulture);
                     if (parameters.Length == 2)
                     {
                         return _apiManager.FacebookClient.Login(false).ToString(CultureInfo.InvariantCulture);
                     }
+                    if (parameters.Length == 3 && parameters[2] == "-f")
+                        return _apiManager.FacebookClient.Login(true).ToString(CultureInfo.InvariantCulture);
                     throw new InvalidCommand("Wrong number of parameters");
                 case "twitter":
                     if (parameters.Length == 4)
-                        return _apiManager.TwitterClient.Login(parameters[2], parameters[3], false).ToString(CultureInfo.InvariantCulture);
+                        return
+                            _apiManager.TwitterClient.Login(parameters[2], parameters[3], false).ToString(
+                                CultureInfo.InvariantCulture);
                     if (parameters.Length == 2)
                     {
                         return _apiManager.TwitterClient.Login(false).ToString(CultureInfo.InvariantCulture);
                     }
+                    if (parameters.Length == 3 && parameters[2] == "-f")
+                        return _apiManager.TwitterClient.Login(true).ToString(CultureInfo.InvariantCulture);
                     throw new InvalidCommand("Wrong number of parameters");
                 default:
                     throw new InvalidCommand("Wrong command");
@@ -160,7 +82,9 @@ namespace CoLiW
                 switch (parameters[1])
                 {
                     case "facebook":
-                        return _apiManager.FacebookClient.Logout().ToString();
+                        return _apiManager.FacebookClient.Logout().ToString(CultureInfo.InvariantCulture);
+                    case "twitter":
+                        return _apiManager.TwitterClient.Logout().ToString(CultureInfo.InvariantCulture);
                     default:
                         throw new InvalidCommand("Invalid app selected for logout.");
                 }
@@ -178,48 +102,17 @@ namespace CoLiW
             switch (parameters[1])
             {
                 case "facebook":
+                    if (_apiManager.FacebookClient.FbLoginForm.IsLoggedIn == false &&
+                        parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login facebook\" first");
                     return GetFacebook(parameters);
                 case "twitter":
+                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login twitter\" first");
                     return GetTwitter(parameters);
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
-        }
-
-        private static string GetTwitter(string[] parameters)
-        {
-            if(parameters.Length < 3)
-                throw new InvalidCommand("You need at least 3 arguments for a GET command");
-
-            switch (parameters[2])
-            {
-                case "retweet":
-                    return GetRetweet(parameters);
-            }
-            return "";
-        }
-
-        private static string GetRetweet(string[] parameters)
-        {
-            var options = GetParameters(parameters, 3);
-            if(options.Count == 0)
-                throw new InvalidCommand("Not enough arguments");
-            foreach (KeyValuePair<string, string> keyValuePair in options)
-            {
-                switch (keyValuePair.Key)
-                {
-                    case "-sd":
-                        long date = 0;
-                        IFormatProvider culture = new System.Globalization.CultureInfo("fr-FR", true);
-                        DateTime startDate = DateTime.Parse(keyValuePair.Value, culture, System.Globalization.DateTimeStyles.AssumeLocal);
-                        string longTimeString = startDate.ToLongTimeString();
-                        long.TryParse(longTimeString, out date);
-                        _apiManager.TwitterClient.ListRetweetsByMe(date);
-                        break;
-                }
-            }
-            return "";
-
         }
 
         private static bool Post(string[] parameters)
@@ -229,10 +122,200 @@ namespace CoLiW
             switch (parameters[1])
             {
                 case "facebook":
+                    if (_apiManager.FacebookClient.FbLoginForm.IsLoggedIn == false &&
+                        parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login facebook\" first");
                     return PostFacebook(parameters);
+                case "twitter":
+                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login twitter\" first");
+                    return PostTwitter(parameters);
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
+        }
+
+        private static bool Delete(string[] parameters)
+        {
+            if (parameters.Length < 2)
+                throw new InvalidCommand("Not enough parameters");
+
+            switch (parameters[1])
+            {
+                case "facebook":
+                    if (_apiManager.FacebookClient.FbLoginForm.IsLoggedIn == false &&
+                        parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login facebook\" first");
+                    return DeleteFacebook(parameters);
+                case "twitter":
+                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login twitter\" first");
+                    return DeleteTwitter(parameters);
+                default:
+                    throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
+            }
+        }
+
+        #endregion
+
+        #region Twitter
+
+        private static bool PostTwitter(string[] parameters)
+        {
+            switch (parameters[2])
+            {
+                case "follow":
+                    return FollowUser(parameters);
+                case "profilepic":
+                    return SetTwitterProfilePicture(parameters);
+                case "message":
+                    return PostTwitterMessage(parameters);
+                case "backgroundimage":
+                    return PostTwitterBkgImage(parameters);
+                default:
+                    throw new InvalidCommand("Unknown argument \"" + parameters[2] + "\"");
+            }
+        }
+      
+        private static bool DeleteTwitter(string[] parameters)
+        {
+            switch (parameters[2])
+            {
+                case "user":
+                    return UnfollowUser(parameters);
+                default:
+                    return false;
+            }
+        }
+
+        private static bool PostTwitterBkgImage(string[] parameters)
+        {
+            Dictionary<string, string> options = GetParameters(parameters, 3);
+            string path = null;
+            foreach (var keyValuePair in options)
+            {
+                switch (keyValuePair.Key)
+                {
+                    case "-p":
+                        path = keyValuePair.Value;
+                        break;
+                    default:
+                        throw new InvalidCommand("Undefined option: " + keyValuePair.Key);
+                }
+            }
+            return _apiManager.TwitterClient.SetBackgroundImage(path);
+        }
+        
+        private static bool UnfollowUser(string[] parameters)
+        {
+            try
+            {
+                Dictionary<string, string> options = GetParameters(parameters, 3);
+
+                string username = null;
+                foreach (var keyValuePair in options)
+                {
+                    switch (keyValuePair.Key)
+                    {
+                        case "-u":
+                            username = keyValuePair.Value;
+                            break;
+                        default:
+                            throw new InvalidCommand("Undefined option:" + keyValuePair.Value);
+                    }
+                }
+                return _apiManager.TwitterClient.Unfollow(username);
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception.Message);
+                return false;
+            }
+        }
+
+        private static bool PostTwitterMessage(string[] parameters)
+        {
+            Dictionary<string, string> options = GetParameters(parameters, 3);
+            string username = null, message = null, path = null;
+            foreach (var keyValuePair in options)
+            {
+                switch (keyValuePair.Key)
+                {
+                    case "-u":
+                        username = keyValuePair.Value;
+                        break;
+                    case "-m":
+                        message = keyValuePair.Value;
+                        break;
+                    case "-p":
+                        path = keyValuePair.Value;
+                        break;
+                    default:
+                        throw new InvalidCommand("Unknown argument \"" + keyValuePair.Key + "\"");
+                }
+            }
+            if (string.IsNullOrEmpty(username)) //if update status
+            {
+                return _apiManager.TwitterClient.UpdateStatus(message, path);
+            }
+            else //if send message
+            {
+                return _apiManager.TwitterClient.SendMessage(message, username);
+            }
+        }
+
+        private static bool SetTwitterProfilePicture(string[] parameters)
+        {
+            Dictionary<string, string> options = GetParameters(parameters, 3);
+            string path = null;
+
+            foreach (var keyValuePair in options)
+            {
+                switch (keyValuePair.Key)
+                {
+                    case "-p":
+                        path = keyValuePair.Value;
+                        break;
+                    default:
+                        throw new InvalidCommand("Unknown argument \"" + keyValuePair.Key + "\"");
+                }
+            }
+            if (path != null)
+                return _apiManager.TwitterClient.UpdateProfilePicture(path);
+            throw new InvalidCommand("You must specify the path for the image");
+        }
+
+        private static bool FollowUser(string[] parameters)
+        {
+            Dictionary<string, string> options = GetParameters(parameters, 3);
+            string username = null;
+
+            foreach (var keyValuePair in options)
+            {
+                switch (keyValuePair.Key)
+                {
+                    case "-u":
+                        username = keyValuePair.Value;
+                        break;
+                    default:
+                        throw new InvalidCommand("Unknown argument \"" + keyValuePair.Key + "\"");
+                }
+            }
+
+            return _apiManager.TwitterClient.Follow(username);
+        }
+
+        private static string GetTwitter(string[] parameters)
+        {
+            if (parameters.Length < 3)
+                throw new InvalidCommand("You need at least 3 arguments for a GET command");
+
+            switch (parameters[2])
+            {
+                case "retweet":
+                    return null; //GetRetweet(parameters);
+            }
+            return "";
         }
 
         #endregion
@@ -266,8 +349,6 @@ namespace CoLiW
                         return PostFacebookPhoto(parameters, username);
                     case "album":
                         return PostFacebookAlbum(parameters, username);
-                    case "status":
-                        return PostFacebookMessage(parameters, "me");
                 }
             }
             catch (Exception exception)
@@ -277,6 +358,11 @@ namespace CoLiW
                 return false;
             }
             return true;
+        }
+
+        private static bool DeleteFacebook(string[] parameters)
+        {
+            return false;
         }
 
         private static bool PostFacebookMessage(string[] parameters, string username)
@@ -339,7 +425,6 @@ namespace CoLiW
         {
             return false;
         }
-
 
         private static bool PostFacebookPhoto(string[] parameters, string username)
         {
@@ -573,7 +658,7 @@ namespace CoLiW
             {
                 string[] keyValue = parameters[i].Split(':');
 
-                if (keyValue.Length > 3)
+                if (keyValue.Length > 2)
                 {
                     keyValue[1] = keyValue[1] + ":" + keyValue[2];
                 }
@@ -606,6 +691,95 @@ namespace CoLiW
             }
             parameters.Add(parameter);
             return parameters.ToArray();
+        }
+
+        private static string ProcessCommand(string command)
+        {
+            try
+            {
+                command = ToLower(command);
+                if (CheckForMashups(command) == true)
+                    return "";
+                string[] parameters = ParseArguments(command);
+
+                switch (parameters[0])
+                {
+                    case "login":
+                        return Login(parameters);
+                    case "logout":
+                        return Logout(parameters);
+                    case "get":
+                        return Get(parameters);
+                    case "post":
+                        return Post(parameters).ToString(CultureInfo.InvariantCulture);
+                    case "delete":
+                        return Delete(parameters).ToString(CultureInfo.InvariantCulture);
+                    case "exit":
+                        Environment.Exit(0);
+                        break;
+                    default:
+                        Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
+                        break;
+                }
+                return "Success";
+            }
+            catch (Exception exception)
+            {
+                return exception.Message;
+            }
+        }
+        
+        private static bool CheckForMashups(string command)
+        {
+            if (!command.Contains("|"))
+            {
+                return false;
+            }
+            
+            string[] parameters = null;
+            string[] commands = null;
+            commands = command.Split('|');
+            if (commands.Length > 2) return "Too many commands";
+
+            commands[0] = commands[0].Trim();
+            commands[1] = commands[1].Trim();
+
+            if (commands[0].StartsWith("get") && commands[1].StartsWith("post"))
+            {
+                string tmp = commands[0];
+                commands[0] = commands[1];
+                commands[1] = tmp;
+            }
+            else if (commands[0].StartsWith("post") == false || commands[1].StartsWith("get") == false)
+                throw new InvalidCommand(
+                    "For a mashup, you must type a post command followed by pipe and get command");
+
+            string retVal;
+            try
+            {
+                retVal = ProcessCommand(commands[1]);
+            }
+            catch (Exception exception)
+            {
+                return "Get error: " + exception.Message;
+            }
+
+            parameters = ParseArguments(commands[0]);
+            commands[0] = string.Empty;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                string[] opts = parameters[i].Split(':');
+                if (opts.Length == 2)
+                    if (opts[1].Length == 0)
+                    {
+                        parameters[i] += "\"" + retVal + "\"";
+                    }
+                    else if (opts[1].Contains("{@}"))
+                        parameters[i] = opts[0] + ":" + opts[1].Replace("{@}", retVal);
+                commands[0] += " " + parameters[i]; //rebuild the command
+            }
+            commands[0] = commands[0].Trim(); //remove spaces
+            return ProcessCommand(commands[0]); //execute the command
         }
 
         #endregion
