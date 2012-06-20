@@ -34,7 +34,154 @@ namespace CoLiW
             // ReSharper disable FunctionNeverReturns
         }
 
-        // ReSharper restore FunctionNeverReturns
+        #region Utils
+
+        private static string ToLower(string command)
+        {
+            string newCommand = null;
+            for (int i = 0; i < command.Length; i++)
+            {
+                newCommand += Char.ToLower(command[i]);
+            }
+            return newCommand;
+        }
+
+        private static Dictionary<string, string> GetParameters(string[] parameters, int indexStart)
+        {
+            var dictionary = new Dictionary<string, string>();
+
+            for (int i = indexStart; i < parameters.Length; i++)
+            {
+                string[] keyValue = parameters[i].Split(':');
+
+                if (keyValue.Length > 2)
+                {
+                    keyValue[1] = keyValue[1] + ":" + keyValue[2];
+                }
+                if (keyValue.Length < 2)
+                    return null;
+                keyValue[0] = keyValue[0].Trim('\"');
+                keyValue[1] = keyValue[1].Trim('\"');
+                dictionary[keyValue[0]] = keyValue[1];
+            }
+            return dictionary;
+        }
+
+        public static String[] ParseArguments(string args)
+        {
+            var parameters = new List<string>();
+            bool add = false;
+            string parameter = null;
+            foreach (char c in args)
+            {
+                if (c == '\"')
+                    add = !add;
+                if (c == ' ')
+                    if (add == false)
+                    {
+                        parameters.Add(parameter);
+                        parameter = string.Empty;
+                        continue;
+                    }
+                parameter += c;
+            }
+            parameters.Add(parameter);
+            return parameters.ToArray();
+        }
+
+        private static string ProcessCommand(string command)
+        {
+            try
+            {
+                command = ToLower(command);
+                if (CheckForMashups(command))
+                    return "";
+                string[] parameters = ParseArguments(command);
+
+                switch (parameters[0])
+                {
+                    case "test":
+                        return _apiManager.TwitterClient.GetUserDetails(Console.ReadLine()).Name;
+                    case "login":
+                        return Login(parameters);
+                    case "logout":
+                        return Logout(parameters);
+                    case "get":
+                        return Get(parameters);
+                    case "post":
+                        return Post(parameters).ToString(CultureInfo.InvariantCulture);
+                    case "delete":
+                        return Delete(parameters).ToString(CultureInfo.InvariantCulture);
+                    case "exit":
+                        Environment.Exit(0);
+                        break;
+                    default:
+                        Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
+                        break;
+                }
+                return "Success";
+            }
+            catch (Exception exception)
+            {
+                return exception.Message;
+            }
+        }
+
+        private static bool CheckForMashups(string command)
+        {
+            if (!command.Contains("|"))
+            {
+                return false;
+            }
+
+            string[] commands = null;
+            commands = command.Split('|');
+
+            var getcommands = new List<string>();
+            var postcommands = new List<string>();
+            var results = new List<string>();
+            for (int i = 0; i < commands.Length; i++)
+            {
+                commands[i] = commands[i].Trim();
+                if (IsGetCommand(commands[i]))
+                {
+                    getcommands.Add(commands[i]);
+                }
+                else
+                {
+                    postcommands.Add(commands[i]);
+                }
+            }
+
+            if (getcommands.Count == 0 || postcommands.Count == 0)
+            {
+                throw new InvalidCommand(
+                    "For a mashup, you must have at least one get command and one post/delete command");
+            }
+
+            foreach (string cmd in getcommands)
+            {
+                results.Add(ProcessCommand(cmd));
+            }
+            for (int i = 0; i < postcommands.Count; i++)
+            {
+                for (int j = 0; j < results.Count; j++)
+                {
+                    postcommands[i] = postcommands[i].Replace("{" + j + "}", results[j]);
+                }
+                ProcessCommand(postcommands[i]);
+            }
+            return true;
+        }
+
+        private static bool IsGetCommand(string cmd)
+        {
+            if (cmd.StartsWith("get"))
+                return true;
+            return false;
+        }
+
+        #endregion
 
         #region Main commands
 
@@ -176,7 +323,7 @@ namespace CoLiW
                     throw new InvalidCommand("Unknown argument \"" + parameters[2] + "\"");
             }
         }
-      
+
         private static bool DeleteTwitter(string[] parameters)
         {
             switch (parameters[2])
@@ -205,7 +352,7 @@ namespace CoLiW
             }
             return _apiManager.TwitterClient.SetBackgroundImage(path);
         }
-        
+
         private static bool UnfollowUser(string[] parameters)
         {
             try
@@ -230,6 +377,61 @@ namespace CoLiW
             {
                 Console.WriteLine(exception.Message);
                 return false;
+            }
+        }
+
+        private static string GetUserDetails(string[] parameters)
+        {
+            try
+            {
+                string username = _apiManager.TwitterClient.ScreenName;
+                foreach (string parameter in parameters)
+                {
+                    if (parameter.Contains("-u"))
+                    {
+                        string[] p = parameter.Split(':');
+                        username = p.Length < 2 ? _apiManager.TwitterClient.ScreenName : p[1].Trim('\"');
+                        break;
+                    }
+                }
+
+                switch (parameters[2])
+                {
+                    case "name":
+                        return _apiManager.TwitterClient.GetUserDetails(username).Name;
+                    case "description":
+                        return _apiManager.TwitterClient.GetUserDetails(username).Description;
+                    case "location":
+                        return _apiManager.TwitterClient.GetUserDetails(username).Location;
+                    case "favorites":
+                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFavorites.ToString(CultureInfo.InvariantCulture);
+                    case "id":
+                        return _apiManager.TwitterClient.GetUserDetails(username).Id.ToString(CultureInfo.InvariantCulture);
+                    case "followers":
+                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFollowers.ToString();
+                    case "friends":
+                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFriends.ToString(CultureInfo.InvariantCulture);
+                    case "website":
+                        return _apiManager.TwitterClient.GetUserDetails(username).Website;
+                    case "tweets":
+                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfStatuses.ToString(CultureInfo.InvariantCulture);
+                    case "backgroundimage":
+                        return _apiManager.TwitterClient.GetUserDetails(username).ProfileBackgroundImageLocation;
+                    case "profilepic":
+                        return _apiManager.TwitterClient.GetUserDetails(username).ProfileImageLocation;
+                    default:
+                        throw new InvalidCommand(
+                            "Invalid request. You can get name, first name, last name, gender, id and profile Url");
+                }
+            }
+            catch (Exception exception)
+            {
+                if (exception is FacebookOAuthException && exception.Message.Contains("#2500"))
+                {
+                    _apiManager.FacebookClient.Login(true);
+                    return GetFacebook(parameters);
+                }
+                throw;
             }
         }
 
@@ -258,10 +460,7 @@ namespace CoLiW
             {
                 return _apiManager.TwitterClient.UpdateStatus(message, path);
             }
-            else //if send message
-            {
-                return _apiManager.TwitterClient.SendMessage(message, username);
-            }
+            return _apiManager.TwitterClient.SendMessage(message, username);
         }
 
         private static bool SetTwitterProfilePicture(string[] parameters)
@@ -309,11 +508,49 @@ namespace CoLiW
         {
             if (parameters.Length < 3)
                 throw new InvalidCommand("You need at least 3 arguments for a GET command");
-
+            string username = _apiManager.TwitterClient.ScreenName;
+            foreach (string parameter in parameters)
+            {
+                if (parameter.Contains("-u"))
+                {
+                    string[] p = parameter.Split(':');
+                    username = p.Length < 2 ? _apiManager.TwitterClient.ScreenName : p[1].Trim('\"');
+                    break;
+                }
+            }
             switch (parameters[2])
             {
-                case "retweet":
-                    return null; //GetRetweet(parameters);
+                case "name":
+                    return _apiManager.TwitterClient.GetUserDetails(username).Name;
+                case "description":
+                    return _apiManager.TwitterClient.GetUserDetails(username).Description;
+                case "location":
+                    return _apiManager.TwitterClient.GetUserDetails(username).Location;
+                case "favorites":
+                    return
+                        _apiManager.TwitterClient.GetUserDetails(username).NumberOfFavorites.ToString(
+                            CultureInfo.InvariantCulture);
+                case "id":
+                    return
+                        _apiManager.TwitterClient.GetUserDetails(username).Id.ToString(
+                            CultureInfo.InvariantCulture);
+                case "followers":
+                    return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFollowers.ToString();
+                case "friends":
+                    return
+                        _apiManager.TwitterClient.GetUserDetails(username).NumberOfFriends.ToString(
+                            CultureInfo.InvariantCulture);
+                case "website":
+                    return _apiManager.TwitterClient.GetUserDetails(username).Website;
+                case "tweets":
+                    return
+                        _apiManager.TwitterClient.GetUserDetails(username).NumberOfStatuses.ToString(
+                            CultureInfo.InvariantCulture);
+                case "backgroundimage":
+                    return _apiManager.TwitterClient.GetUserDetails(username).ProfileBackgroundImageLocation;
+                case "profilepic":
+                    return _apiManager.TwitterClient.GetUserDetails(username).ProfileImageLocation;
+
             }
             return "";
         }
@@ -638,150 +875,6 @@ namespace CoLiW
 
         #endregion
 
-        #region Utils
-
-        private static string ToLower(string command)
-        {
-            string newCommand = null;
-            for (int i = 0; i < command.Length; i++)
-            {
-                newCommand += Char.ToLower(command[i]);
-            }
-            return newCommand;
-        }
-
-        private static Dictionary<string, string> GetParameters(string[] parameters, int indexStart)
-        {
-            var dictionary = new Dictionary<string, string>();
-
-            for (int i = indexStart; i < parameters.Length; i++)
-            {
-                string[] keyValue = parameters[i].Split(':');
-
-                if (keyValue.Length > 2)
-                {
-                    keyValue[1] = keyValue[1] + ":" + keyValue[2];
-                }
-                if (keyValue.Length < 2)
-                    return null;
-                keyValue[0] = keyValue[0].Trim('\"');
-                keyValue[1] = keyValue[1].Trim('\"');
-                dictionary[keyValue[0]] = keyValue[1];
-            }
-            return dictionary;
-        }
-
-        public static String[] ParseArguments(string args)
-        {
-            var parameters = new List<string>();
-            bool add = false;
-            string parameter = null;
-            foreach (char c in args)
-            {
-                if (c == '\"')
-                    add = !add;
-                if (c == ' ')
-                    if (add == false)
-                    {
-                        parameters.Add(parameter);
-                        parameter = string.Empty;
-                        continue;
-                    }
-                parameter += c;
-            }
-            parameters.Add(parameter);
-            return parameters.ToArray();
-        }
-
-        private static string ProcessCommand(string command)
-        {
-            try
-            {
-                command = ToLower(command);
-                if (CheckForMashups(command) == true)
-                    return "";
-                string[] parameters = ParseArguments(command);
-
-                switch (parameters[0])
-                {
-                    case "login":
-                        return Login(parameters);
-                    case "logout":
-                        return Logout(parameters);
-                    case "get":
-                        return Get(parameters);
-                    case "post":
-                        return Post(parameters).ToString(CultureInfo.InvariantCulture);
-                    case "delete":
-                        return Delete(parameters).ToString(CultureInfo.InvariantCulture);
-                    case "exit":
-                        Environment.Exit(0);
-                        break;
-                    default:
-                        Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
-                        break;
-                }
-                return "Success";
-            }
-            catch (Exception exception)
-            {
-                return exception.Message;
-            }
-        }
-        
-        private static bool CheckForMashups(string command)
-        {
-            if (!command.Contains("|"))
-            {
-                return false;
-            }
-            
-            string[] parameters = null;
-            string[] commands = null;
-            commands = command.Split('|');
-            if (commands.Length > 2) return "Too many commands";
-
-            commands[0] = commands[0].Trim();
-            commands[1] = commands[1].Trim();
-
-            if (commands[0].StartsWith("get") && commands[1].StartsWith("post"))
-            {
-                string tmp = commands[0];
-                commands[0] = commands[1];
-                commands[1] = tmp;
-            }
-            else if (commands[0].StartsWith("post") == false || commands[1].StartsWith("get") == false)
-                throw new InvalidCommand(
-                    "For a mashup, you must type a post command followed by pipe and get command");
-
-            string retVal;
-            try
-            {
-                retVal = ProcessCommand(commands[1]);
-            }
-            catch (Exception exception)
-            {
-                return "Get error: " + exception.Message;
-            }
-
-            parameters = ParseArguments(commands[0]);
-            commands[0] = string.Empty;
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                string[] opts = parameters[i].Split(':');
-                if (opts.Length == 2)
-                    if (opts[1].Length == 0)
-                    {
-                        parameters[i] += "\"" + retVal + "\"";
-                    }
-                    else if (opts[1].Contains("{@}"))
-                        parameters[i] = opts[0] + ":" + opts[1].Replace("{@}", retVal);
-                commands[0] += " " + parameters[i]; //rebuild the command
-            }
-            commands[0] = commands[0].Trim(); //remove spaces
-            return ProcessCommand(commands[0]); //execute the command
-        }
-
-        #endregion
+        // ReSharper restore FunctionNeverReturns
     }
 }

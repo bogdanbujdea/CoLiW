@@ -36,6 +36,10 @@ namespace CoLiW
 
         public string ConsumerSecret { get; set; }
 
+        public string ScreenName { get; set; }
+
+        public decimal UserId { get; set; }
+
         public string Pin { get; set; }
 
         public TwitterLoginForm LoginForm { get; set; }
@@ -54,50 +58,6 @@ namespace CoLiW
             }
         }
 
-        public bool Login(bool forcedLogin)
-        {
-            try
-            {
-                if (LoginForm.IsLoggedIn && forcedLogin == false)
-                    //if the user is logged in and force login = false, then exit
-                    return true;
-                if (forcedLogin && LoginForm.IsLoggedIn)
-                    //if the user is logged in, and forcelogin = true, then logout first
-                    Logout();
-
-//                if (Tokens.AccessToken != null && Tokens.AccessTokenSecret != null)
-//                {
-//                    //AuthenticateWith(Token, TokenSecret);
-//                    return true;
-//                }
-                // Step 1 - Retrieve an OAuth Request Token
-                string token = OAuthUtility.GetRequestToken(ConsumerKey, ConsumerSecret, "oob").Token;
-
-
-
-                // Step 2 - Redirect to the OAuth Authorization URL
-                Uri uri = OAuthUtility.BuildAuthorizationUri(token);
-                LoginForm.Browser.Navigate(uri);
-                
-                DialogResult loginResult = LoginForm.ShowDialog();
-                if (loginResult != DialogResult.OK)
-                {
-                    Console.WriteLine("Login was unsuccesful");
-                    return false;
-                }
-                OAuthTokenResponse accessToken = OAuthUtility.GetAccessToken(ConsumerKey, ConsumerSecret, token, Pin);
-
-                Tokens.AccessToken = accessToken.Token;
-                Tokens.AccessTokenSecret = accessToken.TokenSecret;
-                Console.WriteLine("Esti logat ca " + accessToken.ScreenName);
-                LoginForm.IsLoggedIn = true;
-                return true;
-            }
-            catch (Exception exception)
-            {
-                throw new InvalidCredentialException(exception.ToString());
-            }
-        }
 
         public bool Logout()
         {
@@ -129,7 +89,53 @@ namespace CoLiW
             ConsumerSecret = consumerSecret;
             return Login(forcedLogin);
         }
-        
+
+        public bool Login(bool forcedLogin)
+        {
+            try
+            {
+                if (LoginForm.IsLoggedIn && forcedLogin == false)
+                    //if the user is logged in and force login = false, then exit
+                    return true;
+                if (forcedLogin && LoginForm.IsLoggedIn)
+                    //if the user is logged in, and forcelogin = true, then logout first
+                    Logout();
+
+                //                if (Tokens.AccessToken != null && Tokens.AccessTokenSecret != null)
+                //                {
+                //                    //AuthenticateWith(Token, TokenSecret);
+                //                    return true;
+                //                }
+                // Step 1 - Retrieve an OAuth Request Token
+                string token = OAuthUtility.GetRequestToken(ConsumerKey, ConsumerSecret, "oob").Token;
+
+
+
+                // Step 2 - Redirect to the OAuth Authorization URL
+                Uri uri = OAuthUtility.BuildAuthorizationUri(token);
+                LoginForm.Browser.Navigate(uri);
+
+                DialogResult loginResult = LoginForm.ShowDialog();
+                if (loginResult != DialogResult.OK)
+                {
+                    Console.WriteLine("Login was unsuccesful");
+                    return false;
+                }
+                OAuthTokenResponse accessToken = OAuthUtility.GetAccessToken(ConsumerKey, ConsumerSecret, token, Pin);
+
+                Tokens.AccessToken = accessToken.Token;
+                Tokens.AccessTokenSecret = accessToken.TokenSecret;
+                ScreenName = accessToken.ScreenName;
+                UserId = accessToken.UserId;
+                LoginForm.IsLoggedIn = true;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidCredentialException(exception.ToString());
+            }
+        }
+
         public bool Follow(string username)
         {
             var response = Twitterizer.TwitterFriendship.Create(Tokens, username);
@@ -137,6 +143,14 @@ namespace CoLiW
             if(response.Result == RequestResult.Success)
                 return true;
             throw new TwitterizerException(response.ErrorMessage);
+        }
+
+        public TwitterUser GetUserDetails(string username)
+        {
+            TwitterResponse<TwitterUser> twitterResponse = TwitterUser.Show(username);
+            if (twitterResponse.Result == RequestResult.Success)
+                return twitterResponse.ResponseObject;
+            throw new InvalidCommand(twitterResponse.ErrorMessage);
         }
 
         public bool SendMessage(string text, string username)
