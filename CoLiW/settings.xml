@@ -1,0 +1,22 @@
+<Settings>
+  <Apps>
+	  <App>
+		<type>Facebook</type>
+		<key>372354616159806</key>
+		<secret>5ccc6315874961c13249003ef9ed279f</secret>
+		<accesstoken>AAAFSp5Cgbj4BADG6yRZAB9fZCJEsQtZASOcXwlFlnMd64Ku887Qr9ysKy72JY6iDVnyzWpSUVJ9AolIEZBEiZA6idaSTwCpoHkKZCxNBNsGyiUkWwZCNszF</accesstoken>
+	  </App>
+	  <App>
+		<type>Twitter</type>
+		<key>LxfSyKV8laf2HuWdzblXw</key>
+		<secret>PpoiRPC4i9sJBbM14PHRNE7GDfqrZSBdlRALASEBak</secret>
+		<accesstoken>95637111-eOEBDHmkur8hEKjP7cdaOki24fO652718jMnzemPk:MjrafZIgYIbNldTjbayDZUbkfjTWqHSSiLXZcNUdE</accesstoken>
+	  </App>
+	  <App>
+		<type>Blogger</type>
+		<key>coliwbbe</key>
+		<secret>PpoiRPC4i9sJBbM14PHRNE7GDfqrZSBdlRALASEBak</secret>
+		<accesstoken>95637111-NBKoGJOQe5cCG7LVTOiDovCpAhOZXIPm6b964m8:iISI0Gn9MCNg94p1jC9wMu3D7PVyNyjadlQPzAzfis</accesstoken>
+	  </App>
+  </Apps>
+</Settings>

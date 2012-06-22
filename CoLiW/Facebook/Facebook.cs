@@ -10,7 +10,7 @@ using Facebook;
 
 namespace CoLiW
 {
-    public class Facebook : FacebookClient
+    public class Facebook : FacebookClient, IWebApp
     {
         public FacebookLoginForm FbLoginForm;
 

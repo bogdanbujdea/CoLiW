@@ -1,0 +1,5 @@
+<Aliases>
+		<Command value="get facebook">
+			<Alias value="get fb" />
+		</Command>
+  </Aliases>

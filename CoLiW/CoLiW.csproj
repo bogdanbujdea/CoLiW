@@ -38,6 +38,14 @@
     <Reference Include="Facebook">
       <HintPath>..\packages\Facebook.6.0.20\lib\net40-client\Facebook.dll</HintPath>
     </Reference>
+    <Reference Include="Google.GData.Blogger, Version=2.1.0.0, Culture=neutral, PublicKeyToken=6f8943d33947d761, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Google\Google Data API SDK\Redist\Google.GData.Blogger.dll</HintPath>
+    </Reference>
+    <Reference Include="Google.GData.Client, Version=2.1.0.0, Culture=neutral, PublicKeyToken=04a59ca9b0273830, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\..\Program Files (x86)\Google\Google Data API SDK\Redist\Google.GData.Client.dll</HintPath>
+    </Reference>
     <Reference Include="nunit.framework">
       <HintPath>..\packages\NUnit.2.6.0.12054\lib\nunit.framework.dll</HintPath>
     </Reference>
@@ -64,6 +72,8 @@
   <ItemGroup>
     <Compile Include="AlbumDetails.cs" />
     <Compile Include="ApiManager.cs" />
+    <Compile Include="Blog.cs" />
+    <Compile Include="Blogger.cs" />
     <Compile Include="Facebook\Facebook.cs" />
     <Compile Include="Facebook\FacebookLoginForm.cs">
       <SubType>Form</SubType>
@@ -73,8 +83,10 @@
     </Compile>
     <Compile Include="Facebook\FacebookTests.cs" />
     <Compile Include="InvalidCommand.cs" />
+    <Compile Include="IWebApp.cs" />
     <Compile Include="PhotoDetails.cs" />
     <Compile Include="PostDetails.cs" />
+    <Compile Include="PostInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Twitter.cs" />

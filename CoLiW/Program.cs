@@ -1,28 +1,55 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Xml;
 using Facebook;
+using Google.GData.Client;
 
 namespace CoLiW
 {
     internal class Program
     {
         private static ApiManager _apiManager;
-
         [STAThread]
         private static void Main(string[] args)
         {
+            string command = string.Empty;
+            if (args.Length > 0)
+            {
+                foreach (string s in args)
+                {
+                    command += s + " ";
+                }
+            }
+
             _apiManager = new ApiManager();
-            _apiManager.InitializeFacebook("372354616159806", "5ccc6315874961c13249003ef9ed279f");
-            _apiManager.InitializeTwitter("LxfSyKV8laf2HuWdzblXw", "PpoiRPC4i9sJBbM14PHRNE7GDfqrZSBdlRALASEBak");
+            if (ParseSettingsXml() == false)
+            {
+                _apiManager.InitializeFacebook("372354616159806", "5ccc6315874961c13249003ef9ed279f");
+                _apiManager.InitializeTwitter("LxfSyKV8laf2HuWdzblXw", "PpoiRPC4i9sJBbM14PHRNE7GDfqrZSBdlRALASEBak");
+            }
+            ParseAliasesXml();
+
+            if (command.Length > 0)
+            {
+                Console.WriteLine("command= " + command);
+                Console.WriteLine("length=" + command.Length);
+                command = command.Trim();
+                command = ToLower(command);
+                Console.WriteLine(ProcessCommand(command));
+                Environment.Exit(0);
+            }
+
+
             while (true)
             {
                 try
                 {
                     Console.WriteLine("Type a command:");
-                    string command = Console.ReadLine();
+                    command = Console.ReadLine();
                     command = ToLower(command);
                     Console.WriteLine(ProcessCommand(command));
                 }
@@ -35,6 +62,40 @@ namespace CoLiW
         }
 
         #region Utils
+
+        public static string ReadPassword()
+        {
+
+            var pass = new Stack<String>();
+
+            for (ConsoleKeyInfo consKeyInfo = Console.ReadKey(true);
+              consKeyInfo.Key != ConsoleKey.Enter; consKeyInfo = Console.ReadKey(true))
+            {
+                if (consKeyInfo.Key == ConsoleKey.Backspace)
+                {
+                    try
+                    {
+                        Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                        Console.Write(" ");
+                        Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                        pass.Pop();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        Console.SetCursorPosition(Console.CursorLeft + 1, Console.CursorTop);
+                    }
+                }
+                else
+                {
+                    Console.Write("*");
+                    pass.Push(consKeyInfo.KeyChar.ToString());
+                }
+            }
+            var password = pass.ToArray();
+            Array.Reverse(password);
+            return string.Join(string.Empty, password);
+
+        }
 
         private static string ToLower(string command)
         {
@@ -163,12 +224,20 @@ namespace CoLiW
             {
                 results.Add(ProcessCommand(cmd));
             }
+
+            string args = string.Empty;
+
             for (int i = 0; i < postcommands.Count; i++)
             {
                 for (int j = 0; j < results.Count; j++)
                 {
                     postcommands[i] = postcommands[i].Replace("{" + j + "}", results[j]);
+                    args += results[j] + "+";
                 }
+                args = args.Remove(args.LastIndexOf('+'));
+                args = args.Trim();
+                if (postcommands[i].Contains(" blogger ") && postcommands[i].Contains("-p"))
+                    postcommands[i] = postcommands[i].Replace("-p", "-p?\"" + args + "\"");
                 ProcessCommand(postcommands[i]);
             }
             return true;
@@ -179,6 +248,160 @@ namespace CoLiW
             if (cmd.StartsWith("get"))
                 return true;
             return false;
+        }
+
+        private static bool ParseSettingsXml()
+        {
+            try
+            {
+                using (XmlReader reader = new XmlTextReader(_apiManager.SettingsPath))
+                {
+                    var stack = new Stack<IWebApp>();
+                    IWebApp app = null;
+                    while (reader.Read())
+                    {
+                        switch (reader.NodeType)
+                        {
+                            case XmlNodeType.Element:
+                                switch (reader.Name)
+                                {
+                                    case "type":
+                                        string value = reader.ReadElementContentAsString();
+                                        switch (value)
+                                        {
+                                            case "Twitter":
+                                                stack.Push(new Twitter());
+                                                break;
+                                            case "Facebook":
+                                                stack.Push(new Facebook());
+                                                break;
+                                            case "Blogger":
+                                                stack.Push(new Blogger());
+                                                break;
+                                        }
+                                        break;
+                                    case "key":
+                                        {
+                                            app = stack.Peek();
+                                            if (app.GetType().Name == "Twitter")
+                                            {
+                                                ((Twitter)app).ConsumerKey = reader.ReadElementContentAsString();
+                                            }
+                                            else if (app.GetType().Name == "Facebook")
+                                            {
+                                                ((Facebook)app).AppId = reader.ReadElementContentAsString();
+                                            }
+                                            else
+                                            {
+                                                ((Blogger)app).AppName = reader.ReadElementContentAsString();
+                                            }
+                                        }
+                                        break;
+                                    case "secret":
+                                        app = stack.Peek();
+                                        if (app.GetType().Name == "Twitter")
+                                        {
+                                            ((Twitter)app).ConsumerSecret = reader.ReadElementContentAsString();
+                                        }
+                                        else if (app.GetType().Name == "Facebook")
+                                        {
+                                            ((Facebook)app).AppSecret = reader.ReadElementContentAsString();
+                                        }
+                                        break;
+                                    case "accesstoken":
+                                        app = stack.Peek();
+                                        if (app.GetType().Name == "Twitter")
+                                        {
+                                            string[] tokens = reader.ReadElementContentAsString().Split(':');
+                                            _apiManager.InitializeTwitter(((Twitter)app).ConsumerKey,
+                                                                          ((Twitter)app).ConsumerSecret);
+                                            _apiManager.TwitterClient.Tokens.AccessToken = tokens[0];
+                                            _apiManager.TwitterClient.Tokens.AccessTokenSecret = tokens[1];
+                                            _apiManager.TwitterClient.Login(true);
+                                        }
+                                        else if (app.GetType().Name == "Facebook")
+                                        {
+                                            ((Facebook)app).AccessToken = reader.ReadElementContentAsString();
+                                            _apiManager.InitializeFacebook((app as Facebook).AppId, (app as Facebook).AppSecret);
+                                            _apiManager.FacebookClient.AccessToken = (app as Facebook).AccessToken;
+                                            _apiManager.FacebookClient.Login(false);
+                                        }
+                                        else
+                                        {
+                                            _apiManager.BloggerClient = app as Blogger;
+                                        }
+                                        stack.Pop();
+                                        break;
+                                }
+                                break;
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine(exception.Message);
+                return false;
+            }
+        }
+
+        private static bool ParseAliasesXml()
+        {
+            try
+            {
+                _apiManager.Aliases = new Dictionary<string, HashSet<string>>();
+
+                using (XmlReader reader = new XmlTextReader(_apiManager.AliasesPath))
+                {
+                    string command = string.Empty;
+                    while (reader.Read())
+                    {
+                        switch (reader.NodeType)
+                        {
+                            case XmlNodeType.Element:
+                                switch (reader.Name.ToLower())
+                                {
+                                    case "command":
+                                        command = reader.GetAttribute("value");
+                                        break;
+                                    case "alias":
+                                        if (_apiManager.Aliases.ContainsKey(command) == false)
+                                        {
+                                            _apiManager.Aliases[command] = new HashSet<string>();
+                                        }
+                                        _apiManager.Aliases[command].Add(reader.GetAttribute("value"));
+                                        break;
+                                }
+                                break;
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("Aliases.xml : " + exception.Message);
+                return false;
+            }
+        }
+
+        private static bool AddAlias(string cmd, string cmdAlias)
+        {
+            foreach (var keyValuePair in _apiManager.Aliases)
+            {
+                if (String.CompareOrdinal(keyValuePair.Key, cmd) == 0)
+                {
+                    if (keyValuePair.Value.Contains(cmdAlias) == false)
+                    {
+                        _apiManager.Aliases[cmd].Add(cmdAlias);
+                        return true;
+                    }
+                    throw new InvalidCommand("The alias \"" + cmdAlias + "\" for the command \"" + cmd + "\" already exists");
+                }
+            }
+            _apiManager.Aliases[cmd] = new HashSet<string> { cmdAlias };
+            return true;
         }
 
         #endregion
@@ -215,6 +438,17 @@ namespace CoLiW
                     if (parameters.Length == 3 && parameters[2] == "-f")
                         return _apiManager.TwitterClient.Login(true).ToString(CultureInfo.InvariantCulture);
                     throw new InvalidCommand("Wrong number of parameters");
+                case "blogger":
+                    if (parameters.Length == 2)
+                    {
+                        var creds = RequestCredentials();
+                        return _apiManager.BloggerClient.Login(creds[0], creds[1]).ToString();
+                    }
+                    if (parameters.Length == 4)
+                    {
+                        return _apiManager.BloggerClient.Login(parameters[2], parameters[3]).ToString();
+                    }
+                    throw new InvalidCommand("Wrong number of parameters");
                 default:
                     throw new InvalidCommand("Wrong command");
             }
@@ -250,13 +484,17 @@ namespace CoLiW
             {
                 case "facebook":
                     if (_apiManager.FacebookClient.FbLoginForm.IsLoggedIn == false &&
-                        parameters[0].CompareTo("login") != 0)
+                        String.CompareOrdinal(parameters[0], "login") != 0)
                         throw new InvalidCommand("You are not logged in. Use the command \"login facebook\" first");
                     return GetFacebook(parameters);
                 case "twitter":
-                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && parameters[0].CompareTo("login") != 0)
+                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && System.String.CompareOrdinal(parameters[0], "login") != 0)
                         throw new InvalidCommand("You are not logged in. Use the command \"login twitter\" first");
                     return GetTwitter(parameters);
+                case "blogger":
+                    if (_apiManager.BloggerClient.IsLoggedIn == false && System.String.CompareOrdinal(parameters[0], "login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login blogger\" first");
+                    return GetBlogger(parameters);
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
@@ -277,6 +515,10 @@ namespace CoLiW
                     if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && parameters[0].CompareTo("login") != 0)
                         throw new InvalidCommand("You are not logged in. Use the command \"login twitter\" first");
                     return PostTwitter(parameters);
+                case "blogger":
+                    if (_apiManager.BloggerClient.IsLoggedIn == false && parameters[0].CompareTo("login") != 0)
+                        throw new InvalidCommand("You are not logged in. Use the command \"login blogger\" first");
+                    return PostBlogger(parameters);
                 default:
                     throw new InvalidCommand(string.Format("The app {0} doesn't exist", parameters[1]));
             }
@@ -319,6 +561,8 @@ namespace CoLiW
                     return PostTwitterMessage(parameters);
                 case "backgroundimage":
                     return PostTwitterBkgImage(parameters);
+                case "unfollow":
+                    return UnfollowUser(parameters);
                 default:
                     throw new InvalidCommand("Unknown argument \"" + parameters[2] + "\"");
             }
@@ -377,61 +621,6 @@ namespace CoLiW
             {
                 Console.WriteLine(exception.Message);
                 return false;
-            }
-        }
-
-        private static string GetUserDetails(string[] parameters)
-        {
-            try
-            {
-                string username = _apiManager.TwitterClient.ScreenName;
-                foreach (string parameter in parameters)
-                {
-                    if (parameter.Contains("-u"))
-                    {
-                        string[] p = parameter.Split(':');
-                        username = p.Length < 2 ? _apiManager.TwitterClient.ScreenName : p[1].Trim('\"');
-                        break;
-                    }
-                }
-
-                switch (parameters[2])
-                {
-                    case "name":
-                        return _apiManager.TwitterClient.GetUserDetails(username).Name;
-                    case "description":
-                        return _apiManager.TwitterClient.GetUserDetails(username).Description;
-                    case "location":
-                        return _apiManager.TwitterClient.GetUserDetails(username).Location;
-                    case "favorites":
-                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFavorites.ToString(CultureInfo.InvariantCulture);
-                    case "id":
-                        return _apiManager.TwitterClient.GetUserDetails(username).Id.ToString(CultureInfo.InvariantCulture);
-                    case "followers":
-                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFollowers.ToString();
-                    case "friends":
-                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfFriends.ToString(CultureInfo.InvariantCulture);
-                    case "website":
-                        return _apiManager.TwitterClient.GetUserDetails(username).Website;
-                    case "tweets":
-                        return _apiManager.TwitterClient.GetUserDetails(username).NumberOfStatuses.ToString(CultureInfo.InvariantCulture);
-                    case "backgroundimage":
-                        return _apiManager.TwitterClient.GetUserDetails(username).ProfileBackgroundImageLocation;
-                    case "profilepic":
-                        return _apiManager.TwitterClient.GetUserDetails(username).ProfileImageLocation;
-                    default:
-                        throw new InvalidCommand(
-                            "Invalid request. You can get name, first name, last name, gender, id and profile Url");
-                }
-            }
-            catch (Exception exception)
-            {
-                if (exception is FacebookOAuthException && exception.Message.Contains("#2500"))
-                {
-                    _apiManager.FacebookClient.Login(true);
-                    return GetFacebook(parameters);
-                }
-                throw;
             }
         }
 
@@ -875,6 +1064,132 @@ namespace CoLiW
 
         #endregion
 
-        // ReSharper restore FunctionNeverReturns
+        #region Blogger
+
+        private static bool PostBlogger(string[] parameters)
+        {
+            var options = new Dictionary<string, string>();
+            //-p , [-t], -id, -h or -hp
+            for (int i = 2; i < parameters.Length; i++)
+            {
+                if (parameters[i].Contains("-p?") == false)
+                {
+                    string[] keyValue = parameters[i].Split(':');
+                    if (keyValue.Length > 2)
+                    {
+                        keyValue[1] = keyValue[1] + ":" + keyValue[2];
+                    }
+                    if (keyValue.Length < 2)
+                        return false;
+                    keyValue[0] = keyValue[0].Trim('\"');
+                    keyValue[1] = keyValue[1].Trim('\"');
+                    options[keyValue[0]] = keyValue[1];
+                }
+                else
+                {
+                    options["-p"] = parameters[i].Split('?')[1];
+                }
+            }
+
+            if (options == null)
+                throw new InvalidCommand("You must specify parameters like html content/path, blog id and post title");
+
+            var postInfo = new PostInfo();
+
+            foreach (var keyValuePair in options)
+            {
+                switch (keyValuePair.Key)
+                {
+                    case "-hp":
+                        postInfo.Content = File.ReadAllText(keyValuePair.Value);
+                        break;
+                    case "-h":
+                        postInfo.Content = keyValuePair.Value;
+                        break;
+                    case "-id":
+                        postInfo.BlogId = keyValuePair.Value;
+                        break;
+                    case "-t":
+                        postInfo.Title = keyValuePair.Value;
+                        break;
+                    case "-d":
+                        postInfo.IsDraft = true;
+                        break;
+                    case "-p":
+                        postInfo.Parse = true;
+                        postInfo.Args = keyValuePair.Value.Trim('\"').Split('+');
+                        break;
+                    default:
+                        throw new InvalidCommand("Unknown parameter: " + keyValuePair.Key);
+                }
+            }
+            if (postInfo.BlogId == null)
+            {
+                Console.WriteLine("Choose a blog:");
+                postInfo.BlogId = GetBlogs(true);
+            }
+            if (postInfo.Content == null || postInfo.BlogId == null)
+                throw new InvalidCommand("You must specify all the parameters: content, blog id and post title");
+            if (postInfo.Parse == true)
+            {
+                string text = postInfo.Content;
+                int argId = 0;
+                foreach (string arg in postInfo.Args)
+                {
+                    text = text.Replace("{" + argId + "}", arg);
+                    argId++;
+                }
+                postInfo.Content = text;
+            }
+            return _apiManager.BloggerClient.CreatePost(postInfo);
+        }
+
+        private static string[] RequestCredentials()
+        {
+            var creds = new List<string>();
+
+            Console.WriteLine("Enter your google username(ex. user@gmail.com): ");
+            creds.Add(Console.ReadLine());
+            Console.WriteLine("Enter your password:");
+            creds.Add(ReadPassword());
+            return creds.ToArray();
+        }
+
+        private static string GetBlogger(string[] parameters)
+        {
+            switch (parameters[2])
+            {
+                case "blogs":
+                    return GetBlogs(false);
+                default:
+                    throw new InvalidCommand("Wrong option: " + parameters[2]);
+            }
+        }
+
+        private static string GetBlogs(bool chooseBlog)
+        {
+            var blogs = _apiManager.BloggerClient.GetListOfBlogs();
+            Console.WriteLine("Title\tId\n");
+            int i = 1;
+            List<Blog> nblogs = new List<Blog>();
+            foreach (AtomEntry atomEntry in blogs)
+            {
+                string id = atomEntry.Id.Uri.ToString().Substring(atomEntry.Id.Uri.ToString().LastIndexOf('-') + 1);
+                Console.WriteLine(i + ". " + atomEntry.Title.Text + "\t" + id);
+                nblogs.Add(new Blog { Id = id, Name = atomEntry.Title.Text });
+            }
+            if (chooseBlog)
+            {
+                string idStr = Console.ReadLine();
+                int id;
+                bool tryParse = Int32.TryParse(idStr, out id);
+                if (tryParse == false)
+                    throw new InvalidCommand("You must type a number");
+                return nblogs[id - 1].Id;
+            }
+            return "Success";
+        }
+
+        #endregion
     }
 }

@@ -12,11 +12,13 @@ using TwitterUser = Twitterizer.TwitterUser;
 
 namespace CoLiW
 {
-    public class Twitter 
+    public class Twitter : IWebApp
     {
         public Twitter()
         {
-
+            LoginForm = new TwitterLoginForm();
+            LoginForm.Browser.Navigated += BrowserNavigated;
+            Tokens = new OAuthTokens();
         }
 
         public Twitter(string consumerKey, string consumerSecret)
@@ -25,9 +27,7 @@ namespace CoLiW
             ConsumerSecret = consumerSecret;
             LoginForm = new TwitterLoginForm();
             LoginForm.Browser.Navigated += BrowserNavigated;
-            Tokens = new OAuthTokens();
-            Tokens.ConsumerKey = consumerKey;
-            Tokens.ConsumerSecret = consumerSecret;
+            Tokens = new OAuthTokens {ConsumerKey = consumerKey, ConsumerSecret = consumerSecret};
         }
 
         public OAuthTokens Tokens { get; set; }
@@ -57,7 +57,6 @@ namespace CoLiW
 
             }
         }
-
 
         public bool Logout()
         {
@@ -100,16 +99,19 @@ namespace CoLiW
                 if (forcedLogin && LoginForm.IsLoggedIn)
                     //if the user is logged in, and forcelogin = true, then logout first
                     Logout();
-
-                //                if (Tokens.AccessToken != null && Tokens.AccessTokenSecret != null)
-                //                {
-                //                    //AuthenticateWith(Token, TokenSecret);
-                //                    return true;
-                //                }
+                if (Tokens.HasBothTokens)
+                {
+                    TwitterResponse<TwitterUser> response = TwitterAccount.VerifyCredentials(Tokens);
+                    if(response != null && response.ResponseObject != null)
+                    {
+                        UserId = response.ResponseObject.Id;
+                        ScreenName = response.ResponseObject.ScreenName;
+                        LoginForm.IsLoggedIn = true;
+                        return true;
+                    }
+                }
                 // Step 1 - Retrieve an OAuth Request Token
                 string token = OAuthUtility.GetRequestToken(ConsumerKey, ConsumerSecret, "oob").Token;
-
-
 
                 // Step 2 - Redirect to the OAuth Authorization URL
                 Uri uri = OAuthUtility.BuildAuthorizationUri(token);
