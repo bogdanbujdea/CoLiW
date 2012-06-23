@@ -31,6 +31,16 @@ namespace CoLiW
 
         }
 
+        public List<string> GetUpdates(string username)
+        {
+            var query = string.Format("SELECT message FROM status WHERE uid={0}", GetUserDetails(username).Id);
+
+            dynamic parameters = new ExpandoObject();
+            parameters.q = query;
+            dynamic results = Get("/fql", parameters);
+            return results;
+        }
+
         public bool IsLoggedIn()
         {
             try

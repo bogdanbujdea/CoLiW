@@ -198,7 +198,9 @@ namespace CoLiW
                 switch (parameters[0].ToLower())
                 {
                     case "test":
-                        ParseRssFeed("http://news.softpedia.com/newsRSS/Global-0.xml", 30);
+                        ProcessCommand(
+                            "post blogger -hp:\"d:\\web\\echipa.html\" -t:\"Echipa Proiect CoLiW\" -p | get facebook name -u:\"balanescu.madalinalexandru\" | get facebook profilepic -geturl:true -u:\"balanescu.madalinalexandru\" | get facebook name -u:\"bogdanbujdea\" | get facebook profilepic -geturl:true -u:\"bogdanbujdea\" | get facebook name -u:\"ada.enache\" | get facebook profilepic -geturl:true -u:\"ada.enache\"");
+                        
                         break;
                     case "define":
                         try
@@ -302,7 +304,7 @@ namespace CoLiW
                 args = args.Remove(args.LastIndexOf('+'));
                 args = args.Trim();
                 if (postcommands[i].Contains(" blogger ") && postcommands[i].Contains("-p"))
-                    postcommands[i] = postcommands[i].Replace("-p", "-p?\"" + args + "\"");
+                    postcommands[i] = postcommands[i].Replace("-p", "-p*\"" + args + "\"");
                 ProcessCommand(postcommands[i]);
             }
             return true;
@@ -547,7 +549,7 @@ namespace CoLiW
                         #region type
 
                         writer.WriteStartElement("type");
-                        writer.WriteValue(webApp.GetType().Name);
+                        writer.WriteString(webApp.GetType().Name);
                         writer.WriteEndElement();
 
                         #endregion
@@ -558,13 +560,13 @@ namespace CoLiW
                         switch (webApp.GetType().Name)
                         {
                             case "Facebook":
-                                writer.WriteValue((webApp as Facebook).AppId);
+                                writer.WriteString((webApp as Facebook).AppId);
                                 break;
                             case "Twitter":
-                                writer.WriteValue((webApp as Twitter).ConsumerKey);
+                                writer.WriteString((webApp as Twitter).ConsumerKey);
                                 break;
                             case "Blogger":
-                                writer.WriteValue((webApp as Blogger).AppName);
+                                writer.WriteString((webApp as Blogger).AppName);
                                 break;
                         }
                         writer.WriteEndElement();
@@ -577,10 +579,10 @@ namespace CoLiW
                         switch (webApp.GetType().Name)
                         {
                             case "Facebook":
-                                writer.WriteValue((webApp as Facebook).AppSecret);
+                                writer.WriteString((webApp as Facebook).AppSecret);
                                 break;
                             case "Twitter":
-                                writer.WriteValue((webApp as Twitter).ConsumerSecret);
+                                writer.WriteString((webApp as Twitter).ConsumerSecret);
                                 break;
                         }
                         writer.WriteEndElement();
@@ -593,10 +595,10 @@ namespace CoLiW
                         switch (webApp.GetType().Name)
                         {
                             case "Facebook":
-                                writer.WriteValue((webApp as Facebook).AccessToken);
+                                writer.WriteString((webApp as Facebook).AccessToken);
                                 break;
                             case "Twitter":
-                                writer.WriteValue((webApp as Twitter).AccessToken);
+                                writer.WriteString((webApp as Twitter).AccessToken);
                                 break;
                         }
                         writer.WriteEndElement();
@@ -995,7 +997,7 @@ namespace CoLiW
             switch (parameters[2])
             {
                 case "last_tweets":
-                    int nr = 0;
+                    int nr;
                     Int32.TryParse(parameters[3], out nr);
                     if (nr <= 0)
                         return "";
@@ -1004,6 +1006,8 @@ namespace CoLiW
                         Console.WriteLine(text);
                     }
                     return "Done!";
+                case "last_tweet":
+                    return _apiManager.TwitterClient.GetLastTweets(1)[0];
                 case "name":
                     return _apiManager.TwitterClient.GetUserDetails(username).Name;
                 case "description":
@@ -1326,6 +1330,7 @@ namespace CoLiW
                 }
                 string path = null;
                 string size = null;
+                bool retUrl = false;
                 foreach (var keyValuePair in options)
                 {
                     switch (keyValuePair.Key)
@@ -1337,6 +1342,9 @@ namespace CoLiW
                             size = keyValuePair.Value;
                             break;
                         case "-u":
+                            break;
+                        case "-geturl":
+                            retUrl = true;
                             break;
                         default:
                             throw new InvalidCommand("Wrong option: " + keyValuePair.Key);
@@ -1354,16 +1362,19 @@ namespace CoLiW
                             "You must provide a size value between 0 and 2, or one of the following values:small, large and square");
                     size = sizes[s];
                 }
-
+                string url = "https://graph.facebook.com/" + username + "/picture?type=" + size;
+                if (retUrl)
+                    return url;
                 if (path == null)
                 {
                     Console.WriteLine("Type the path for the photo:(ex: c:\\myprofilepic.jpg");
                     path = Console.ReadLine();
                 }
 
-
+                
                 _apiManager.FacebookClient.GetUrlImage(
                     "https://graph.facebook.com/" + username + "/picture?type=" + size, path);
+                
                 return path;
             }
             catch (Exception ex)
@@ -1394,7 +1405,7 @@ namespace CoLiW
             //-p , [-t], -id, -h or -hp
             for (int i = 2; i < parameters.Length; i++)
             {
-                if (parameters[i].Contains("-p?") == false)
+                if (parameters[i].Contains("-p*") == false)
                 {
                     string[] keyValue = parameters[i].Split(':');
                     if (keyValue.Length > 2)
@@ -1409,7 +1420,7 @@ namespace CoLiW
                 }
                 else
                 {
-                    options["-p"] = parameters[i].Split('?')[1];
+                    options["-p"] = parameters[i].Split('*')[1];
                 }
             }
 
