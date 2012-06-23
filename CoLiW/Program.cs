@@ -1,5 +1,30 @@
-﻿using System;
-using System.Collections;
+﻿#region License
+// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="Program.cs" company="{Faculty of Computer Science A. I. Cuza}">
+//
+// CoLiW is an eperiment for using web applications in the command line
+// Copyright (C) 2012 Faculty of Computer Science A. I. Cuza
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the +terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see http://www.gnu.org/licenses/. 
+// </copyright>
+// <summary>
+// Email: coliw@gmail.com
+// </summary>
+// -------------------------------------------------------------------------------------------------------------------
+#endregion
+
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -16,12 +41,18 @@ namespace CoLiW
         [STAThread]
         private static void Main(string[] args)
         {
+
             string command = string.Empty;
+            bool parseFile = false;
             if (args.Length > 0)
             {
                 foreach (string s in args)
                 {
                     command += s + " ";
+                }
+                if (File.Exists(command))
+                {
+                    parseFile = true;
                 }
             }
 
@@ -30,16 +61,26 @@ namespace CoLiW
             {
                 _apiManager.InitializeFacebook("372354616159806", "5ccc6315874961c13249003ef9ed279f");
                 _apiManager.InitializeTwitter("LxfSyKV8laf2HuWdzblXw", "PpoiRPC4i9sJBbM14PHRNE7GDfqrZSBdlRALASEBak");
+                _apiManager.BloggerClient.AppName = "coliwbbe";
             }
             ParseAliasesXml();
 
             if (command.Length > 0)
             {
-                Console.WriteLine("command= " + command);
-                Console.WriteLine("length=" + command.Length);
                 command = command.Trim();
-                command = ToLower(command);
-                Console.WriteLine(ProcessCommand(command));
+                if (parseFile == true)
+                {
+                    var lines = File.ReadLines(command);
+                    foreach (var line in lines)
+                    {
+                        Console.WriteLine(ProcessCommand(line));
+                    }
+                }
+                else
+                    Console.WriteLine(ProcessCommand(command));
+                SaveSettings();
+                SaveAliases();
+                Console.WriteLine("Done!");
                 Environment.Exit(0);
             }
 
@@ -50,7 +91,6 @@ namespace CoLiW
                 {
                     Console.WriteLine("Type a command:");
                     command = Console.ReadLine();
-                    command = ToLower(command);
                     Console.WriteLine(ProcessCommand(command));
                 }
                 catch (Exception exception)
@@ -95,16 +135,6 @@ namespace CoLiW
             Array.Reverse(password);
             return string.Join(string.Empty, password);
 
-        }
-
-        private static string ToLower(string command)
-        {
-            string newCommand = null;
-            for (int i = 0; i < command.Length; i++)
-            {
-                newCommand += Char.ToLower(command[i]);
-            }
-            return newCommand;
         }
 
         private static Dictionary<string, string> GetParameters(string[] parameters, int indexStart)
@@ -154,27 +184,42 @@ namespace CoLiW
         {
             try
             {
-                command = ToLower(command);
+                command = GetCommand(command);
                 if (CheckForMashups(command))
                     return "";
                 string[] parameters = ParseArguments(command);
 
-                switch (parameters[0])
+                switch (parameters[0].ToLower())
                 {
-                    case "test":
-                        return _apiManager.TwitterClient.GetUserDetails(Console.ReadLine()).Name;
+                    case "define":
+                        try
+                        {
+                            if (AddAlias(parameters[1], parameters[2]) == true)
+                                return "Alias added";
+                        }
+                        catch (Exception ex)
+                        {
+                            return ex.Message;
+                        }
+                        break;
                     case "login":
-                        return Login(parameters);
+                        Login(parameters);
+                        SaveSettings();
+                        break;
                     case "logout":
-                        return Logout(parameters);
+                        Logout(parameters);
+                        SaveSettings();
+                        break;
                     case "get":
                         return Get(parameters);
                     case "post":
-                        return Post(parameters).ToString(CultureInfo.InvariantCulture);
+                        Post(parameters);
+                        break;
                     case "delete":
-                        return Delete(parameters).ToString(CultureInfo.InvariantCulture);
+                        Delete(parameters).ToString(CultureInfo.InvariantCulture);
+                        break;
                     case "exit":
-                        Environment.Exit(0);
+                        Exit();
                         break;
                     default:
                         Console.WriteLine("Wrong command. Type 'help' for a list of available commands");
@@ -186,6 +231,15 @@ namespace CoLiW
             {
                 return exception.Message;
             }
+        }
+
+        private static void Exit()
+        {
+            Console.WriteLine("Saving settings...");
+            Console.WriteLine(SaveSettings() ? "Settings saved!" : "Settings were not saved");
+            Console.WriteLine(SaveAliases() ? "Aliases saved!" : "Aliases were not saved");
+            Console.WriteLine("Bye....");
+            Environment.Exit(0);
         }
 
         private static bool CheckForMashups(string command)
@@ -317,6 +371,7 @@ namespace CoLiW
                                                                           ((Twitter)app).ConsumerSecret);
                                             _apiManager.TwitterClient.Tokens.AccessToken = tokens[0];
                                             _apiManager.TwitterClient.Tokens.AccessTokenSecret = tokens[1];
+                                            _apiManager.TwitterClient.AccessToken = tokens[0] + ":" + tokens[1];
                                             _apiManager.TwitterClient.Login(true);
                                         }
                                         else if (app.GetType().Name == "Facebook")
@@ -341,6 +396,16 @@ namespace CoLiW
             }
             catch (Exception exception)
             {
+                if(exception is NullReferenceException)
+                    Console.WriteLine(exception.ToString());
+                if (exception is XmlException)
+                    return false;
+                if(exception is FileNotFoundException)
+                {
+                    var fileStream = File.Create(_apiManager.SettingsPath);
+                    fileStream.Close();
+                    return false;
+                }
                 Console.WriteLine(exception.Message);
                 return false;
             }
@@ -381,13 +446,154 @@ namespace CoLiW
             }
             catch (Exception exception)
             {
+                if (exception is FileNotFoundException)
+                {
+                    var fileStream = File.Create(_apiManager.AliasesPath);
+                    fileStream.Close();
+                    return false;
+                }
+                if (exception is NullReferenceException)
+                    return false;
                 Console.WriteLine("Aliases.xml : " + exception.Message);
                 return false;
             }
         }
 
+        private static bool SaveAliases()
+        {
+            try
+            {
+                using (XmlWriter writer = new XmlTextWriter(_apiManager.AliasesPath, Encoding.UTF8))
+                {
+                    writer.WriteStartDocument();
+                    writer.WriteStartElement("Aliases");
+                    foreach (var kvp in _apiManager.Aliases)
+                    {
+                        writer.WriteStartElement("Command");
+                        writer.WriteAttributeString("value", kvp.Key);
+                        foreach (var command in kvp.Value)
+                        {
+                            writer.WriteStartElement("Alias");
+                            writer.WriteAttributeString("value", command);
+                            writer.WriteEndElement();
+                        }
+                        writer.WriteEndElement();
+                    }
+                    writer.WriteEndElement();
+                    writer.WriteEndDocument();
+                    return true;
+                }
+            }
+            catch (Exception exception)
+            {
+                if (exception is FileNotFoundException)
+                {
+                    var fileStream = File.Create(_apiManager.AliasesPath);
+                    fileStream.Close();
+                    return SaveAliases();
+                }
+                if (exception is NullReferenceException)
+                    return false;
+                Console.WriteLine("Save aliases exception: " + exception.Message);
+                return false;
+            }
+        }
+
+        private static bool SaveSettings()
+        {
+            try
+            {
+                using(XmlWriter writer = new XmlTextWriter("settings.xml", Encoding.UTF8))
+                {
+                    writer.WriteStartDocument();
+                    writer.WriteStartElement("Settings");
+                    var apps = new List<IWebApp> { _apiManager.FacebookClient, _apiManager.TwitterClient, _apiManager.BloggerClient };
+                    foreach (var webApp in apps)
+                    {
+                        writer.WriteStartElement("Apps");
+                        writer.WriteStartElement("type");
+                        writer.WriteValue(webApp.GetType().Name);
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("key");
+                        switch (webApp.GetType().Name)
+                        {
+                            case "Facebook":
+                                writer.WriteValue((webApp as Facebook).AppId);
+                                break;
+                            case "Twitter":
+                                writer.WriteValue((webApp as Twitter).ConsumerKey);
+                                break;
+                            case "Blogger":
+                                writer.WriteValue((webApp as Blogger).AppName);
+                                break;
+                        }
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("secret");
+                        switch (webApp.GetType().Name)
+                        {
+                            case "Facebook":
+                                writer.WriteValue((webApp as Facebook).AppSecret);
+                                break;
+                            case "Twitter":
+                                writer.WriteValue((webApp as Twitter).ConsumerSecret);
+                                break;
+                        }
+                        writer.WriteEndElement();
+                        writer.WriteStartElement("accesstoken");
+                        switch (webApp.GetType().Name)
+                        {
+                            case "Facebook":
+                                writer.WriteValue((webApp as Facebook).AccessToken);
+                                break;
+                            case "Twitter":
+                                writer.WriteValue((webApp as Twitter).AccessToken);
+                                break;
+                        }
+                        writer.WriteEndElement();
+                        writer.WriteEndElement();
+                    }
+                    writer.WriteEndElement();
+                    writer.WriteEndElement();
+                    writer.WriteEndDocument();
+                    return true;
+                }
+                
+            }
+            catch (Exception exception)
+            {
+                if (exception is FileNotFoundException)
+                {
+                    var fileStream = File.Create(_apiManager.SettingsPath);
+                    fileStream.Close();
+                    return SaveSettings();
+                }
+                if (exception is NullReferenceException)
+                    return false;
+                Console.WriteLine("SaveSettings exception: " + exception.Message);
+                return false;
+            }
+        }
+
+        private static string GetCommand(string alias)
+        {
+            alias = alias.Trim().Trim('\"');
+            foreach (var keyValuePair in _apiManager.Aliases)
+            {
+                foreach (var str in keyValuePair.Value)
+                {
+                    if (alias.StartsWith(str))
+                    {
+                        alias = alias.Replace(str, keyValuePair.Key);
+                    }
+                }
+            }
+            return alias;
+        }
+
         private static bool AddAlias(string cmd, string cmdAlias)
         {
+            cmd = cmd.Trim().Trim('\"');
+            cmdAlias = cmdAlias.Trim().Trim('\"');
             foreach (var keyValuePair in _apiManager.Aliases)
             {
                 if (String.CompareOrdinal(keyValuePair.Key, cmd) == 0)
@@ -401,6 +607,7 @@ namespace CoLiW
                 }
             }
             _apiManager.Aliases[cmd] = new HashSet<string> { cmdAlias };
+            SaveAliases();
             return true;
         }
 
@@ -615,10 +822,18 @@ namespace CoLiW
                             throw new InvalidCommand("Undefined option:" + keyValuePair.Value);
                     }
                 }
-                return _apiManager.TwitterClient.Unfollow(username);
+                if(_apiManager.TwitterClient.Unfollow(username))
+                {
+                    Console.WriteLine("You're not following " + username + " anymore");
+                    return true;
+                }
+                Console.WriteLine("You're already not following " + username);
+                return false;
             }
             catch (Exception exception)
             {
+                if (exception is NullReferenceException)
+                    return false;
                 Console.WriteLine(exception.Message);
                 return false;
             }
@@ -707,8 +922,20 @@ namespace CoLiW
                     break;
                 }
             }
+
+
             switch (parameters[2])
             {
+                case "last_tweets":
+                    int nr = 0;
+                    Int32.TryParse(parameters[3], out nr);
+                    if (nr <= 0)
+                        return "";
+                    foreach (var text in _apiManager.TwitterClient.GetLastTweets(nr))
+                    {
+                        Console.WriteLine(text);
+                    }
+                    return "Done!";
                 case "name":
                     return _apiManager.TwitterClient.GetUserDetails(username).Name;
                 case "description":

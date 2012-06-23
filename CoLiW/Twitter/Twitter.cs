@@ -1,10 +1,32 @@
-﻿using System;
+﻿#region License
+// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="Twitter.cs" company="Faculty of Computer Science A. I. Cuza">
+//
+// CoLiW is an eperiment for using web applications in the command line
+// Copyright (C) 2012 Faculty of Computer Science A. I. Cuza
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the +terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see http://www.gnu.org/licenses/. 
+// </copyright>
+// <summary>
+// Email: coliw@gmail.com
+// </summary>
+// -------------------------------------------------------------------------------------------------------------------
+#endregion
+using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Net;
 using System.Security.Authentication;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using Twitterizer;
@@ -31,6 +53,8 @@ namespace CoLiW
         }
 
         public OAuthTokens Tokens { get; set; }
+
+        public string AccessToken { get; set; }
 
         public string ConsumerKey { get; set; }
 
@@ -66,7 +90,7 @@ namespace CoLiW
 
         public bool Unfollow(string username)
         {
-            var response = Twitterizer.TwitterFriendship.Delete(Tokens, username);
+            var response = TwitterFriendship.Delete(Tokens, username);
 
             if (response.Result == RequestResult.Success)
                 return true;
@@ -127,6 +151,7 @@ namespace CoLiW
 
                 Tokens.AccessToken = accessToken.Token;
                 Tokens.AccessTokenSecret = accessToken.TokenSecret;
+                AccessToken = accessToken.Token + ":" + accessToken.TokenSecret;
                 ScreenName = accessToken.ScreenName;
                 UserId = accessToken.UserId;
                 LoginForm.IsLoggedIn = true;
@@ -145,6 +170,22 @@ namespace CoLiW
             if(response.Result == RequestResult.Success)
                 return true;
             throw new TwitterizerException(response.ErrorMessage);
+        }
+
+        public List<string> GetLastTweets(int nr)
+        {
+            UserTimelineOptions options = new UserTimelineOptions();
+            options.ScreenName = ScreenName;
+            TwitterStatusCollection tweets = TwitterTimeline.UserTimeline(options).ResponseObject;
+            List<String> tweetList = new List<string>();
+            int i = 0;
+            foreach (var tweet in tweets)
+            {
+                tweetList.Add(tweet.Text);
+                if (++i == nr)
+                    break;
+            }
+            return tweetList;
         }
 
         public TwitterUser GetUserDetails(string username)

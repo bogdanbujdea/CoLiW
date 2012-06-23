@@ -70,10 +70,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AlbumDetails.cs" />
+    <Compile Include="Facebook\AlbumDetails.cs" />
     <Compile Include="ApiManager.cs" />
-    <Compile Include="Blog.cs" />
-    <Compile Include="Blogger.cs" />
+    <Compile Include="Blogger\Blog.cs" />
+    <Compile Include="Blogger\Blogger.cs" />
     <Compile Include="Facebook\Facebook.cs" />
     <Compile Include="Facebook\FacebookLoginForm.cs">
       <SubType>Form</SubType>
@@ -84,16 +84,16 @@
     <Compile Include="Facebook\FacebookTests.cs" />
     <Compile Include="InvalidCommand.cs" />
     <Compile Include="IWebApp.cs" />
-    <Compile Include="PhotoDetails.cs" />
-    <Compile Include="PostDetails.cs" />
-    <Compile Include="PostInfo.cs" />
+    <Compile Include="Facebook\PhotoDetails.cs" />
+    <Compile Include="Facebook\PostDetails.cs" />
+    <Compile Include="Blogger\PostInfo.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Twitter.cs" />
-    <Compile Include="TwitterLoginForm.cs">
+    <Compile Include="Twitter\Twitter.cs" />
+    <Compile Include="Twitter\TwitterLoginForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="TwitterLoginForm.Designer.cs">
+    <Compile Include="Twitter\TwitterLoginForm.Designer.cs">
       <DependentUpon>TwitterLoginForm.cs</DependentUpon>
     </Compile>
     <Compile Include="UserDetails.cs" />
@@ -106,7 +106,7 @@
     <EmbeddedResource Include="Facebook\FacebookLoginForm.resx">
       <DependentUpon>FacebookLoginForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="TwitterLoginForm.resx">
+    <EmbeddedResource Include="Twitter\TwitterLoginForm.resx">
       <DependentUpon>TwitterLoginForm.cs</DependentUpon>
     </EmbeddedResource>
   </ItemGroup>

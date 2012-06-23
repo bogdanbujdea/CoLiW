@@ -21,7 +21,7 @@ namespace CoLiW
             FbLoginForm = new FacebookLoginForm();
             FbLoginForm.Browser.Navigated += BrowserNavigated;
         }
-
+        
         public Facebook(string appId, string appSecret)
         {
             AppId = appId;
@@ -197,8 +197,9 @@ namespace CoLiW
                                           {"message", album.AlbumDescription},
                                           {"name", album.AlbumName}
                                       };
-            var resul = Post("/me/albums", albumParameters) as JsonObject;
-            return false;
+            var result = Post("/me/albums", albumParameters) as JsonObject;
+
+            return true;
         }
 
         public Image GetUrlImage(string url, string path)
