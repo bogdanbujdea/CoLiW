@@ -3,8 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoLiW", "CoLiW\CoLiW.csproj", "{90E2D9C0-AC0D-4B13-ABC6-81CE7E7DC133}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoLiWGUI", "CoLiWGUI\CoLiWGUI.csproj", "{78B70822-3108-4A25-B5C0-53A1E970DAC6}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -15,10 +13,6 @@ Global
 		{90E2D9C0-AC0D-4B13-ABC6-81CE7E7DC133}.Debug|x86.Build.0 = Debug|x86
 		{90E2D9C0-AC0D-4B13-ABC6-81CE7E7DC133}.Release|x86.ActiveCfg = Release|x86
 		{90E2D9C0-AC0D-4B13-ABC6-81CE7E7DC133}.Release|x86.Build.0 = Release|x86
-		{78B70822-3108-4A25-B5C0-53A1E970DAC6}.Debug|x86.ActiveCfg = Debug|x86
-		{78B70822-3108-4A25-B5C0-53A1E970DAC6}.Debug|x86.Build.0 = Debug|x86
-		{78B70822-3108-4A25-B5C0-53A1E970DAC6}.Release|x86.ActiveCfg = Release|x86
-		{78B70822-3108-4A25-B5C0-53A1E970DAC6}.Release|x86.Build.0 = Release|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
