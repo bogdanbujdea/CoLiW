@@ -1,4 +1,5 @@
 ﻿#region License
+
 // --------------------------------------------------------------------------------------------------------------------
 // <copyright file="Program.cs" company="{Faculty of Computer Science A. I. Cuza}">
 //
@@ -22,12 +23,14 @@
 // Email: coliw@gmail.com
 // </summary>
 // -------------------------------------------------------------------------------------------------------------------
+
 #endregion
 
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Net;
 using System.Text;
 using System.Xml;
 using Facebook;
@@ -38,11 +41,15 @@ namespace CoLiW
     internal class Program
     {
         private static ApiManager _apiManager;
+
         [STAThread]
         private static void Main(string[] args)
         {
-
             string command = string.Empty;
+            foreach (string s in args)
+            {
+                Console.WriteLine(s);
+            }
             bool parseFile = false;
             if (args.Length > 0)
             {
@@ -68,10 +75,10 @@ namespace CoLiW
             if (command.Length > 0)
             {
                 command = command.Trim();
-                if (parseFile == true)
+                if (parseFile)
                 {
-                    var lines = File.ReadLines(command);
-                    foreach (var line in lines)
+                    IEnumerable<string> lines = File.ReadLines(command);
+                    foreach (string line in lines)
                     {
                         Console.WriteLine(ProcessCommand(line));
                     }
@@ -105,11 +112,11 @@ namespace CoLiW
 
         public static string ReadPassword()
         {
-
             var pass = new Stack<String>();
 
             for (ConsoleKeyInfo consKeyInfo = Console.ReadKey(true);
-              consKeyInfo.Key != ConsoleKey.Enter; consKeyInfo = Console.ReadKey(true))
+                 consKeyInfo.Key != ConsoleKey.Enter;
+                 consKeyInfo = Console.ReadKey(true))
             {
                 if (consKeyInfo.Key == ConsoleKey.Backspace)
                 {
@@ -131,10 +138,9 @@ namespace CoLiW
                     pass.Push(consKeyInfo.KeyChar.ToString());
                 }
             }
-            var password = pass.ToArray();
+            string[] password = pass.ToArray();
             Array.Reverse(password);
             return string.Join(string.Empty, password);
-
         }
 
         private static Dictionary<string, string> GetParameters(string[] parameters, int indexStart)
@@ -191,10 +197,13 @@ namespace CoLiW
 
                 switch (parameters[0].ToLower())
                 {
+                    case "test":
+                        ParseRssFeed("http://news.softpedia.com/newsRSS/Global-0.xml", 30);
+                        break;
                     case "define":
                         try
                         {
-                            if (AddAlias(parameters[1], parameters[2]) == true)
+                            if (AddAlias(parameters[1], parameters[2]))
                                 return "Alias added";
                         }
                         catch (Exception ex)
@@ -229,6 +238,8 @@ namespace CoLiW
             }
             catch (Exception exception)
             {
+                if (exception is NullReferenceException)
+                    return "You must login first";
                 return exception.Message;
             }
         }
@@ -339,15 +350,15 @@ namespace CoLiW
                                             app = stack.Peek();
                                             if (app.GetType().Name == "Twitter")
                                             {
-                                                ((Twitter)app).ConsumerKey = reader.ReadElementContentAsString();
+                                                ((Twitter) app).ConsumerKey = reader.ReadElementContentAsString();
                                             }
                                             else if (app.GetType().Name == "Facebook")
                                             {
-                                                ((Facebook)app).AppId = reader.ReadElementContentAsString();
+                                                ((Facebook) app).AppId = reader.ReadElementContentAsString();
                                             }
                                             else
                                             {
-                                                ((Blogger)app).AppName = reader.ReadElementContentAsString();
+                                                ((Blogger) app).AppName = reader.ReadElementContentAsString();
                                             }
                                         }
                                         break;
@@ -355,11 +366,11 @@ namespace CoLiW
                                         app = stack.Peek();
                                         if (app.GetType().Name == "Twitter")
                                         {
-                                            ((Twitter)app).ConsumerSecret = reader.ReadElementContentAsString();
+                                            ((Twitter) app).ConsumerSecret = reader.ReadElementContentAsString();
                                         }
                                         else if (app.GetType().Name == "Facebook")
                                         {
-                                            ((Facebook)app).AppSecret = reader.ReadElementContentAsString();
+                                            ((Facebook) app).AppSecret = reader.ReadElementContentAsString();
                                         }
                                         break;
                                     case "accesstoken":
@@ -367,8 +378,13 @@ namespace CoLiW
                                         if (app.GetType().Name == "Twitter")
                                         {
                                             string[] tokens = reader.ReadElementContentAsString().Split(':');
-                                            _apiManager.InitializeTwitter(((Twitter)app).ConsumerKey,
-                                                                          ((Twitter)app).ConsumerSecret);
+                                            _apiManager.InitializeTwitter(((Twitter) app).ConsumerKey,
+                                                                          ((Twitter) app).ConsumerSecret);
+                                            if (tokens.Length != 2)
+                                            {
+                                                stack.Pop();
+                                                break;
+                                            }
                                             _apiManager.TwitterClient.Tokens.AccessToken = tokens[0];
                                             _apiManager.TwitterClient.Tokens.AccessTokenSecret = tokens[1];
                                             _apiManager.TwitterClient.AccessToken = tokens[0] + ":" + tokens[1];
@@ -376,8 +392,9 @@ namespace CoLiW
                                         }
                                         else if (app.GetType().Name == "Facebook")
                                         {
-                                            ((Facebook)app).AccessToken = reader.ReadElementContentAsString();
-                                            _apiManager.InitializeFacebook((app as Facebook).AppId, (app as Facebook).AppSecret);
+                                            ((Facebook) app).AccessToken = reader.ReadElementContentAsString();
+                                            _apiManager.InitializeFacebook((app as Facebook).AppId,
+                                                                           (app as Facebook).AppSecret);
                                             _apiManager.FacebookClient.AccessToken = (app as Facebook).AccessToken;
                                             _apiManager.FacebookClient.Login(false);
                                         }
@@ -392,17 +409,20 @@ namespace CoLiW
                         }
                     }
                 }
+                if (_apiManager.FacebookClient == null || _apiManager.TwitterClient == null ||
+                    _apiManager.BloggerClient == null)
+                    return false;
                 return true;
             }
             catch (Exception exception)
             {
-                if(exception is NullReferenceException)
+                if (exception is NullReferenceException)
                     Console.WriteLine(exception.ToString());
                 if (exception is XmlException)
                     return false;
-                if(exception is FileNotFoundException)
+                if (exception is FileNotFoundException)
                 {
-                    var fileStream = File.Create(_apiManager.SettingsPath);
+                    FileStream fileStream = File.Create(_apiManager.SettingsPath);
                     fileStream.Close();
                     return false;
                 }
@@ -448,7 +468,7 @@ namespace CoLiW
             {
                 if (exception is FileNotFoundException)
                 {
-                    var fileStream = File.Create(_apiManager.AliasesPath);
+                    FileStream fileStream = File.Create(_apiManager.AliasesPath);
                     fileStream.Close();
                     return false;
                 }
@@ -471,7 +491,7 @@ namespace CoLiW
                     {
                         writer.WriteStartElement("Command");
                         writer.WriteAttributeString("value", kvp.Key);
-                        foreach (var command in kvp.Value)
+                        foreach (string command in kvp.Value)
                         {
                             writer.WriteStartElement("Alias");
                             writer.WriteAttributeString("value", command);
@@ -488,7 +508,7 @@ namespace CoLiW
             {
                 if (exception is FileNotFoundException)
                 {
-                    var fileStream = File.Create(_apiManager.AliasesPath);
+                    FileStream fileStream = File.Create(_apiManager.AliasesPath);
                     fileStream.Close();
                     return SaveAliases();
                 }
@@ -503,17 +523,37 @@ namespace CoLiW
         {
             try
             {
-                using(XmlWriter writer = new XmlTextWriter("settings.xml", Encoding.UTF8))
+                using (XmlWriter writer = new XmlTextWriter("settings.xml", Encoding.UTF8))
                 {
+                    #region document
+
                     writer.WriteStartDocument();
+
+                    #region settings
+
                     writer.WriteStartElement("Settings");
-                    var apps = new List<IWebApp> { _apiManager.FacebookClient, _apiManager.TwitterClient, _apiManager.BloggerClient };
-                    foreach (var webApp in apps)
+
+                    #region apps
+
+                    writer.WriteStartElement("Apps");
+                    var apps = new List<IWebApp>
+                                   {_apiManager.FacebookClient, _apiManager.TwitterClient, _apiManager.BloggerClient};
+                    foreach (IWebApp webApp in apps)
                     {
-                        writer.WriteStartElement("Apps");
+                        #region app
+
+                        writer.WriteStartElement("App");
+
+                        #region type
+
                         writer.WriteStartElement("type");
                         writer.WriteValue(webApp.GetType().Name);
                         writer.WriteEndElement();
+
+                        #endregion
+
+                        #region key
+
                         writer.WriteStartElement("key");
                         switch (webApp.GetType().Name)
                         {
@@ -528,6 +568,11 @@ namespace CoLiW
                                 break;
                         }
                         writer.WriteEndElement();
+
+                        #endregion
+
+                        #region secret
+
                         writer.WriteStartElement("secret");
                         switch (webApp.GetType().Name)
                         {
@@ -539,6 +584,11 @@ namespace CoLiW
                                 break;
                         }
                         writer.WriteEndElement();
+
+                        #endregion
+
+                        #region accesstoken
+
                         writer.WriteStartElement("accesstoken");
                         switch (webApp.GetType().Name)
                         {
@@ -550,23 +600,38 @@ namespace CoLiW
                                 break;
                         }
                         writer.WriteEndElement();
+
+                        #endregion
+
                         writer.WriteEndElement();
+
+                        #endregion
                     }
                     writer.WriteEndElement();
+
+                    #endregion
+
                     writer.WriteEndElement();
+
+                    #endregion
+
                     writer.WriteEndDocument();
+
+                    #endregion
+
                     return true;
                 }
-                
             }
             catch (Exception exception)
             {
                 if (exception is FileNotFoundException)
                 {
-                    var fileStream = File.Create(_apiManager.SettingsPath);
+                    FileStream fileStream = File.Create(_apiManager.SettingsPath);
                     fileStream.Close();
                     return SaveSettings();
                 }
+                if (exception is XmlException)
+                    return false;
                 if (exception is NullReferenceException)
                     return false;
                 Console.WriteLine("SaveSettings exception: " + exception.Message);
@@ -579,7 +644,7 @@ namespace CoLiW
             alias = alias.Trim().Trim('\"');
             foreach (var keyValuePair in _apiManager.Aliases)
             {
-                foreach (var str in keyValuePair.Value)
+                foreach (string str in keyValuePair.Value)
                 {
                     if (alias.StartsWith(str))
                     {
@@ -603,10 +668,11 @@ namespace CoLiW
                         _apiManager.Aliases[cmd].Add(cmdAlias);
                         return true;
                     }
-                    throw new InvalidCommand("The alias \"" + cmdAlias + "\" for the command \"" + cmd + "\" already exists");
+                    throw new InvalidCommand("The alias \"" + cmdAlias + "\" for the command \"" + cmd +
+                                             "\" already exists");
                 }
             }
-            _apiManager.Aliases[cmd] = new HashSet<string> { cmdAlias };
+            _apiManager.Aliases[cmd] = new HashSet<string> {cmdAlias};
             SaveAliases();
             return true;
         }
@@ -648,7 +714,7 @@ namespace CoLiW
                 case "blogger":
                     if (parameters.Length == 2)
                     {
-                        var creds = RequestCredentials();
+                        string[] creds = RequestCredentials();
                         return _apiManager.BloggerClient.Login(creds[0], creds[1]).ToString();
                     }
                     if (parameters.Length == 4)
@@ -695,11 +761,13 @@ namespace CoLiW
                         throw new InvalidCommand("You are not logged in. Use the command \"login facebook\" first");
                     return GetFacebook(parameters);
                 case "twitter":
-                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false && System.String.CompareOrdinal(parameters[0], "login") != 0)
+                    if (_apiManager.TwitterClient.LoginForm.IsLoggedIn == false &&
+                        String.CompareOrdinal(parameters[0], "login") != 0)
                         throw new InvalidCommand("You are not logged in. Use the command \"login twitter\" first");
                     return GetTwitter(parameters);
                 case "blogger":
-                    if (_apiManager.BloggerClient.IsLoggedIn == false && System.String.CompareOrdinal(parameters[0], "login") != 0)
+                    if (_apiManager.BloggerClient.IsLoggedIn == false &&
+                        String.CompareOrdinal(parameters[0], "login") != 0)
                         throw new InvalidCommand("You are not logged in. Use the command \"login blogger\" first");
                     return GetBlogger(parameters);
                 default:
@@ -822,7 +890,7 @@ namespace CoLiW
                             throw new InvalidCommand("Undefined option:" + keyValuePair.Value);
                     }
                 }
-                if(_apiManager.TwitterClient.Unfollow(username))
+                if (_apiManager.TwitterClient.Unfollow(username))
                 {
                     Console.WriteLine("You're not following " + username + " anymore");
                     return true;
@@ -931,7 +999,7 @@ namespace CoLiW
                     Int32.TryParse(parameters[3], out nr);
                     if (nr <= 0)
                         return "";
-                    foreach (var text in _apiManager.TwitterClient.GetLastTweets(nr))
+                    foreach (string text in _apiManager.TwitterClient.GetLastTweets(nr))
                     {
                         Console.WriteLine(text);
                     }
@@ -966,7 +1034,6 @@ namespace CoLiW
                     return _apiManager.TwitterClient.GetUserDetails(username).ProfileBackgroundImageLocation;
                 case "profilepic":
                     return _apiManager.TwitterClient.GetUserDetails(username).ProfileImageLocation;
-
             }
             return "";
         }
@@ -1076,7 +1143,35 @@ namespace CoLiW
 
         private static bool PostFacebookAlbum(string[] parameters, string username)
         {
-            return false;
+            try
+            {
+                var album = new AlbumDetails();
+                Dictionary<string, string> options = GetParameters(parameters, 3);
+                foreach (var option in options)
+                {
+                    switch (option.Key)
+                    {
+                        case "-an":
+                            album.AlbumName = option.Value;
+                            break;
+                        case "-ad":
+                            album.AlbumDescription = option.Value;
+                            break;
+                        default:
+                            throw new InvalidCommand("Unknown parameter: " + option.Key);
+                    }
+                }
+                if (album.AlbumName == null)
+                    throw new InvalidCommand("Album name missing. Use the -an parameter to specify it");
+
+                return _apiManager.FacebookClient.CreateAlbum(album);
+            }
+            catch (Exception exception)
+            {
+                if (exception is InvalidCommand)
+                    Console.WriteLine(exception.Message);
+                return false;
+            }
         }
 
         private static bool PostFacebookPhoto(string[] parameters, string username)
@@ -1251,7 +1346,7 @@ namespace CoLiW
                     size = "large";
                 else if (size.Length < 2)
                 {
-                    string[] sizes = { "small", "large", "square" };
+                    string[] sizes = {"small", "large", "square"};
                     int s = 0;
                     Int32.TryParse(options["-s"], out s);
                     if (s < 0 || s > 2)
@@ -1322,7 +1417,8 @@ namespace CoLiW
                 throw new InvalidCommand("You must specify parameters like html content/path, blog id and post title");
 
             var postInfo = new PostInfo();
-
+            string rssUrl = null;
+            int count = 1;
             foreach (var keyValuePair in options)
             {
                 switch (keyValuePair.Key)
@@ -1336,8 +1432,16 @@ namespace CoLiW
                     case "-id":
                         postInfo.BlogId = keyValuePair.Value;
                         break;
+                    case "-rc":
+                        Int32.TryParse(keyValuePair.Value, out count);
+                        break;
                     case "-t":
                         postInfo.Title = keyValuePair.Value;
+                        break;
+                    case "-rss":
+                        rssUrl = keyValuePair.Value;
+                        if (rssUrl == "")
+                            break;
                         break;
                     case "-d":
                         postInfo.IsDraft = true;
@@ -1357,18 +1461,74 @@ namespace CoLiW
             }
             if (postInfo.Content == null || postInfo.BlogId == null)
                 throw new InvalidCommand("You must specify all the parameters: content, blog id and post title");
-            if (postInfo.Parse == true)
+            string htmlContent = string.Empty;
+            if (string.IsNullOrEmpty(rssUrl) == false)
             {
-                string text = postInfo.Content;
-                int argId = 0;
-                foreach (string arg in postInfo.Args)
+                string template = postInfo.Content;
+                foreach (Item item in ParseRssFeed(rssUrl, count))
                 {
-                    text = text.Replace("{" + argId + "}", arg);
-                    argId++;
+                    htmlContent += ParseHtml(template, new[] {item.Title, item.Description, item.Link});
                 }
-                postInfo.Content = text;
+                postInfo.Content = htmlContent;
+                return _apiManager.BloggerClient.CreatePost(postInfo);
+            }
+            if (postInfo.Parse)
+            {
+                postInfo.Content = ParseHtml(postInfo.Content, postInfo.Args);
             }
             return _apiManager.BloggerClient.CreatePost(postInfo);
+        }
+
+        private static string ParseHtml(string text, string[] args)
+        {
+            int argId = 0;
+            foreach (string arg in args)
+            {
+                text = text.Replace("{" + argId + "}", arg);
+                argId++;
+            }
+            return text;
+        }
+
+        private static List<Item> ParseRssFeed(string url, int count)
+        {
+            var document = new XmlDocument();
+            var client = new WebClient();
+            client.DownloadFile(url, "feed.xml");
+            document.Load("feed.xml");
+            //Console.WriteLine(document.InnerText);
+            int i = 0;
+            var items = new List<Item>();
+            XmlNodeList rssItems = document.GetElementsByTagName("item");
+            if (count >= rssItems.Count)
+                count = rssItems.Count - 1;
+            foreach (XmlElement xmlItem in rssItems)
+            {
+                try
+                {
+                    i++;
+                    var item = new Item();
+                    item.Title = xmlItem.GetElementsByTagName("title")[0].InnerText;
+                        //item.GetElementsByTagName("title").Item(0).Value;
+                    item.Description = xmlItem.GetElementsByTagName("description")[0].InnerText;
+                    item.Link = xmlItem.GetElementsByTagName("link")[0].InnerText;
+                    items.Add(item);
+                    if (i == count)
+                        break;
+                }
+                catch (Exception exception)
+                {
+                    if (exception is NullReferenceException)
+                        i--;
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+            if (i == 0 || count < 0 || items.Count == 0)
+                throw new InvalidCommand("No rss items");
+            return items;
         }
 
         private static string[] RequestCredentials()
@@ -1395,15 +1555,15 @@ namespace CoLiW
 
         private static string GetBlogs(bool chooseBlog)
         {
-            var blogs = _apiManager.BloggerClient.GetListOfBlogs();
+            AtomEntryCollection blogs = _apiManager.BloggerClient.GetListOfBlogs();
             Console.WriteLine("Title\tId\n");
             int i = 1;
-            List<Blog> nblogs = new List<Blog>();
+            var nblogs = new List<Blog>();
             foreach (AtomEntry atomEntry in blogs)
             {
                 string id = atomEntry.Id.Uri.ToString().Substring(atomEntry.Id.Uri.ToString().LastIndexOf('-') + 1);
                 Console.WriteLine(i + ". " + atomEntry.Title.Text + "\t" + id);
-                nblogs.Add(new Blog { Id = id, Name = atomEntry.Title.Text });
+                nblogs.Add(new Blog {Id = id, Name = atomEntry.Title.Text});
             }
             if (chooseBlog)
             {

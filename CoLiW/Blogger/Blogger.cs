@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using Google.GData.Blogger;
@@ -62,17 +63,34 @@ namespace CoLiW
 
         public bool CreatePost(PostInfo postInfo)
         {
-            var newPost = new AtomEntry();
-            newPost.Title.Text = postInfo.Title;
-            newPost.Content = new AtomContent();
-            newPost.Content.Content = postInfo.Content;
-            newPost.Content.Type = "xhtml";
-            newPost.IsDraft = postInfo.IsDraft;
+            try
+            {
+                var newPost = new AtomEntry();
+                newPost.Title.Text = postInfo.Title;
+                newPost.Content = new AtomContent();
+                newPost.Content.Content = postInfo.Content;
+                newPost.Content.Type = "xhtml";
+                newPost.IsDraft = postInfo.IsDraft;
+                if(newPost.Content.Content.StartsWith("<div xmlns='http://www.w3.org/1999/xhtml'>") == false)
+                {
+                    newPost.Content.Content = newPost.Content.Content.Insert(0, "<div xmlns='http://www.w3.org/1999/xhtml'>");
+                    newPost.Content.Content = newPost.Content.Content += "</div>";
+                }
+                newPost.Content.Content = newPost.Content.Content.Replace("&rsquo;", "'");
+                File.WriteAllText("c:\\tmp.html", newPost.Content.Content);
+                var blogFeedUri = new Uri("http://www.blogger.com/feeds/" + postInfo.BlogId + "/posts/default");
+                service.Insert(blogFeedUri, newPost);
 
-            var blogFeedUri = new Uri("http://www.blogger.com/feeds/" + postInfo.BlogId + "/posts/default");
-            service.Insert(blogFeedUri, newPost);
-            
-            return true;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                if(exception is GDataRequestException)
+                {
+                    Console.WriteLine("The html is not valid: " + (exception as GDataRequestException).ResponseString);
+                }
+                return false;
+            }
         }
     }
 }

@@ -83,6 +83,7 @@
     </Compile>
     <Compile Include="Facebook\FacebookTests.cs" />
     <Compile Include="InvalidCommand.cs" />
+    <Compile Include="Item.cs" />
     <Compile Include="IWebApp.cs" />
     <Compile Include="Facebook\PhotoDetails.cs" />
     <Compile Include="Facebook\PostDetails.cs" />
